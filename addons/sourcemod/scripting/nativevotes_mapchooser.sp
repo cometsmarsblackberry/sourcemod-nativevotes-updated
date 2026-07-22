@@ -67,6 +67,7 @@ enum
 	mp_maxrounds,
 	mp_fraglimit,
 	mp_bonusroundtime,
+	mp_chattime,
 	mapcyclefile,
 
 	/* Plugin ConVars */
@@ -118,6 +119,14 @@ bool g_WaitingForVote;
 bool g_MapVoteCompleted;
 bool g_ChangeMapAtRoundEnd;
 bool g_ChangeMapInProgress;
+bool g_IsTF2;
+bool g_MapEndVoteTriggered;
+bool g_MapEndVotePending;
+bool g_ChatTimeOverridden;
+bool g_ChatTimeUpperBoundOverridden;
+int g_OriginalChatTime;
+int g_OverriddenChatTime;
+float g_OriginalChatTimeUpperBound;
 int g_mapFileSerial = -1;
 int g_AppID;
 
@@ -132,6 +141,14 @@ int g_winCount[MAX_TEAMS];
 
 #define VOTE_EXTEND 	"##extend##"
 #define VOTE_DONTCHANGE "##dontchange##"
+
+// Leave time for the result message and the delayed changelevel after a vote.
+#define MAP_END_VOTE_BUFFER 5
+#define MAP_END_CHANGE_DELAY 2.0
+// NativeVotes waits this long before displaying a runoff vote.
+#define MAP_END_RUNOFF_DELAY 3
+// InitiateVote retries at this interval if another vote is already running.
+#define MAP_END_RETRY_DELAY 5
 
 // Libraries
 bool g_NativeVotes;
@@ -158,7 +175,7 @@ public void OnPluginStart()
 	g_NextMapList = new ArrayList(arraySize);
 
 	g_ConVars[mapvote_endvote] 		 		= CreateConVar("sm_mapvote_endvote", "1", "Specifies if MapChooser should run an end of map vote.", _, true, 0.0, true, 1.0);
-	g_ConVars[mapvote_start] 		 		= CreateConVar("sm_mapvote_start", "3.0", "Specifies when to start the vote based on time remaining.", _, true, 1.0);
+	g_ConVars[mapvote_start] 		 		= CreateConVar("sm_mapvote_start", "3.0", "Specifies when to start the vote based on time remaining. Set to 0 on TF2 to start the vote when the map ends.", _, true, 0.0);
 	g_ConVars[mapvote_startround]    		= CreateConVar("sm_mapvote_startround", "2.0", "Specifies when to start the vote based on rounds remaining. Use '0' on TF2 to start vote during bonus round time", _, true, 0.0);
 	g_ConVars[mapvote_startfrags]    		= CreateConVar("sm_mapvote_startfrags", "5.0", "Specifies when to start the vote base on frags remaining.", _, true, 1.0);
 	g_ConVars[extendmap_timestep]    		= CreateConVar("sm_extendmap_timestep", "15", "Specifies how much many more minutes each extension makes.", _, true, 5.0);
@@ -177,8 +194,12 @@ public void OnPluginStart()
 	g_ConVars[mapcycle_auto]         		= CreateConVar("sm_mapcycle_auto", "0", "Specifies whether or not to automatically populate the maps list.", _, true, 0.0, true, 1.0);
 	g_ConVars[mapcycle_exclude]      		= CreateConVar("sm_mapcycle_exclude", ".*test.*|background01|^tr.*$", "Specifies which maps shouldn't be automatically added with a regex pattern.");
 
+	g_ConVars[mapvote_endvote].AddChangeHook(ConVarChanged_MapVoteTiming);
+	g_ConVars[mapvote_start].AddChangeHook(ConVarChanged_MapVoteTiming);
+
 	EngineVersion engine = GetEngineVersion();
-	if (engine != Engine_SDK2013 && engine == Engine_TF2)
+	g_IsTF2 = engine == Engine_TF2;
+	if (g_IsTF2)
 	{
 		g_ConVars[workshop_map_collection]  = CreateConVar("sm_workshop_map_collection", "", "Specifies the workshop collection to fetch the maps from.");
 		g_ConVars[workshop_cleanup] 		= CreateConVar("sm_workshop_map_cleanup", "0", "Specifies whether or not to automatically workshop maps on map change.", _, true, 0.0, true, 1.0);
@@ -191,7 +212,14 @@ public void OnPluginStart()
 	g_ConVars[mp_maxrounds]      = FindConVar("mp_maxrounds");
 	g_ConVars[mp_fraglimit]      = FindConVar("mp_fraglimit");
 	g_ConVars[mp_bonusroundtime] = FindConVar("mp_bonusroundtime");
+	g_ConVars[mp_chattime]       = FindConVar("mp_chattime");
 	g_ConVars[mapcyclefile]      = FindConVar("mapcyclefile");
+
+	if (g_IsTF2)
+	{
+		// This fires immediately before TF2 enters intermission and reads mp_chattime.
+		HookEvent("teamplay_game_over", Event_TeamplayGameOver, EventHookMode_Pre);
+	}
 	
 	if (g_ConVars[mp_winlimit] || g_ConVars[mp_maxrounds])
 	{
@@ -308,6 +336,9 @@ public void OnLibraryRemoved(const char[] name)
 
 public void OnConfigsExecuted()
 {
+	g_MapEndVoteTriggered = false;
+	g_MapEndVotePending = false;
+
 	if (g_ConVars[workshop_cleanup].BoolValue)
 	{
 		CleanupWorkshopMaps();
@@ -355,7 +386,7 @@ public void OnConfigsExecuted()
 	}
 
 	/* Check if mapchooser will attempt to start mapvote during bonus round time - TF2 Only */
-	if (g_ConVars[mp_bonusroundtime] && !g_ConVars[mapvote_startround].IntValue)
+	if (!IsMapEndVoteModeEnabled() && g_ConVars[mp_bonusroundtime] && !g_ConVars[mapvote_startround].IntValue)
 	{
 		if (g_ConVars[mp_bonusroundtime].FloatValue <= g_ConVars[mapvote_voteduration].FloatValue)
 		{
@@ -366,10 +397,14 @@ public void OnConfigsExecuted()
 
 public void OnMapEnd()
 {
+	RestoreChatTime();
+
 	g_HasVoteStarted = false;
 	g_WaitingForVote = false;
 	g_ChangeMapAtRoundEnd = false;
 	g_ChangeMapInProgress = false;
+	g_MapEndVoteTriggered = false;
+	g_MapEndVotePending = false;
 	
 	g_VoteTimer = null;
 	g_RetryTimer = null;
@@ -388,6 +423,11 @@ public void OnMapEnd()
 	{
 		WritePreviousMapsToText();
 	}	
+}
+
+public void OnPluginEnd()
+{
+	RestoreChatTime();
 }
 
 public void OnClientDisconnect(int client)
@@ -447,24 +487,38 @@ public void OnMapTimeLeftChanged()
 	}
 }
 
+public void ConVarChanged_MapVoteTiming(ConVar convar, const char[] oldValue, const char[] newValue)
+{
+	if (g_MapList.Length)
+	{
+		SetupTimeleftTimer();
+	}
+}
+
 void SetupTimeleftTimer()
 {
+	if (g_VoteTimer != null)
+	{
+		KillTimer(g_VoteTimer);
+		g_VoteTimer = null;
+	}
+
+	// In this TF2 mode the game-over event starts the vote at the real map end.
+	if (!g_ConVars[mapvote_endvote].BoolValue || IsMapEndVoteModeEnabled())
+	{
+		return;
+	}
+
 	int time;
 	if (GetMapTimeLeft(time) && time > 0)
 	{
-		int startTime = g_ConVars[mapvote_start].IntValue * 60;
+		int startTime = RoundToFloor(g_ConVars[mapvote_start].FloatValue * 60.0);
 		if (time - startTime < 0 && g_ConVars[mapvote_endvote].BoolValue && !g_MapVoteCompleted && !g_HasVoteStarted)
 		{
 			InitiateVote(MapChange_MapEnd, null);
 		}
 		else
 		{
-			if (g_VoteTimer != null)
-			{
-				KillTimer(g_VoteTimer);
-				g_VoteTimer = null;
-			}	
-			
 			//g_VoteTimer = CreateTimer(float(time - startTime), Timer_StartMapVote, _, TIMER_FLAG_NO_MAPCHANGE);
 			DataPack data;
 			g_VoteTimer = CreateDataTimer(float(time - startTime), Timer_StartMapVote, data, TIMER_FLAG_NO_MAPCHANGE);
@@ -475,9 +529,169 @@ void SetupTimeleftTimer()
 	}
 }
 
+bool IsMapEndVoteModeEnabled()
+{
+	return g_IsTF2
+		&& g_ConVars[mapvote_endvote].BoolValue
+		&& g_ConVars[mapvote_start].FloatValue <= 0.0;
+}
+
+bool HasHumanPlayers()
+{
+	for (int i = 1; i <= MaxClients; i++)
+	{
+		if (IsClientInGame(i) && !IsFakeClient(i))
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+int GetMapEndVoteIntermissionTime()
+{
+	int voteDuration = g_ConVars[mapvote_voteduration].IntValue;
+	int intermissionTime = voteDuration + MAP_END_VOTE_BUFFER;
+
+	if (g_ConVars[mapvote_runoff].BoolValue)
+	{
+		intermissionTime += voteDuration + MAP_END_RUNOFF_DELAY;
+	}
+
+	bool anotherVoteInProgress = g_NativeVotes ? NativeVotes_IsVoteInProgress() : IsVoteInProgress();
+	if (anotherVoteInProgress && !g_HasVoteStarted)
+	{
+		intermissionTime += voteDuration + MAP_END_RETRY_DELAY;
+	}
+
+	return intermissionTime;
+}
+
+void ExtendChatTimeForMapVote()
+{
+	if (!g_ConVars[mp_chattime])
+	{
+		LogError("Unable to extend the map-end intermission: mp_chattime was not found.");
+		return;
+	}
+
+	int requiredTime = GetMapEndVoteIntermissionTime();
+	int currentTime = g_ConVars[mp_chattime].IntValue;
+	if (currentTime >= requiredTime)
+	{
+		return;
+	}
+
+	g_OriginalChatTime = currentTime;
+	g_ChatTimeUpperBoundOverridden = false;
+
+	float upperBound;
+	if (g_ConVars[mp_chattime].GetBounds(ConVarBound_Upper, upperBound) && upperBound < float(requiredTime))
+	{
+		g_OriginalChatTimeUpperBound = upperBound;
+		g_ConVars[mp_chattime].SetBounds(ConVarBound_Upper, true, float(requiredTime));
+		g_ChatTimeUpperBoundOverridden = true;
+	}
+
+	g_ConVars[mp_chattime].IntValue = requiredTime;
+	g_OverriddenChatTime = g_ConVars[mp_chattime].IntValue;
+	g_ChatTimeOverridden = true;
+
+	if (g_OverriddenChatTime < requiredTime)
+	{
+		LogError("Unable to extend mp_chattime to %d seconds; it was limited to %d seconds.", requiredTime, g_OverriddenChatTime);
+	}
+}
+
+void RestoreChatTime()
+{
+	if (!g_ChatTimeOverridden || !g_ConVars[mp_chattime])
+	{
+		return;
+	}
+
+	// Do not overwrite a value deliberately changed by an admin or another plugin.
+	if (g_ConVars[mp_chattime].IntValue == g_OverriddenChatTime)
+	{
+		g_ConVars[mp_chattime].IntValue = g_OriginalChatTime;
+	}
+
+	if (g_ChatTimeUpperBoundOverridden)
+	{
+		g_ConVars[mp_chattime].SetBounds(ConVarBound_Upper, true, g_OriginalChatTimeUpperBound);
+	}
+
+	g_ChatTimeOverridden = false;
+	g_ChatTimeUpperBoundOverridden = false;
+}
+
+public void Event_TeamplayGameOver(Event event, const char[] name, bool dontBroadcast)
+{
+	if (!IsMapEndVoteModeEnabled()
+		|| g_MapEndVoteTriggered
+		|| !g_MapList.Length
+		|| (!g_NominateList.Length && !g_NextMapList.Length)
+		|| g_MapVoteCompleted
+		|| !HasHumanPlayers())
+	{
+		return;
+	}
+
+	g_MapEndVoteTriggered = true;
+	g_MapEndVotePending = true;
+
+	// TF2 reads this ConVar immediately after firing teamplay_game_over.
+	ExtendChatTimeForMapVote();
+	RequestFrame(Frame_StartMapEndVote);
+}
+
+public void Frame_StartMapEndVote(any data)
+{
+	// GoToIntermission has copied mp_chattime by the next frame, so restore the
+	// server's configured value without shortening the current intermission.
+	RestoreChatTime();
+
+	if (!g_MapEndVotePending)
+	{
+		return;
+	}
+
+	g_MapEndVotePending = false;
+
+	// GoToIntermission forces this panel open after teamplay_game_over.
+	for (int i = 1; i <= MaxClients; i++)
+	{
+		if (IsClientInGame(i))
+		{
+			ShowVGUIPanel(i, "scores", INVALID_HANDLE, false);
+		}
+	}
+
+	if (!g_MapVoteCompleted && !g_HasVoteStarted && !g_WaitingForVote && HasHumanPlayers())
+	{
+		InitiateVote(MapChange_MapEnd, null);
+	}
+}
+
+void ScheduleChangeAfterMapEndVote()
+{
+	if (!g_MapEndVoteTriggered
+		|| g_ChangeTime != MapChange_MapEnd
+		|| !g_MapVoteCompleted
+		|| g_ChangeMapInProgress)
+	{
+		return;
+	}
+
+	g_ChangeMapInProgress = true;
+	CreateTimer(MAP_END_CHANGE_DELAY, Timer_ChangeMap, INVALID_HANDLE, TIMER_FLAG_NO_MAPCHANGE);
+}
+
 public Action Timer_StartMapVote(Handle timer, DataPack data)
 {
-	if (timer == g_RetryTimer)
+	bool isRetryTimer = timer == g_RetryTimer;
+	if (isRetryTimer)
 	{
 		g_WaitingForVote = false;
 		g_RetryTimer = null;
@@ -487,19 +701,15 @@ public Action Timer_StartMapVote(Handle timer, DataPack data)
 		g_VoteTimer = null;
 	}
 
-	// Prevent map vote if the server is empty
-	int playerCount = 0;
-	for (int i = 1; i <= MaxClients; i++)
+	// A timer created before sm_mapvote_start was changed to 0 must not start
+	// an early vote. Retry timers are still needed if another vote is active.
+	if (!isRetryTimer && IsMapEndVoteModeEnabled())
 	{
-		if (!IsClientInGame(i))
-			continue;
-
-		if (IsFakeClient(i))
-			continue;
-
-		playerCount++;
+		return Plugin_Stop;
 	}
-	if (playerCount == 0)
+
+	// Prevent map vote if the server is empty
+	if (!HasHumanPlayers())
 	{
 		return Plugin_Stop;
 	}
@@ -595,6 +805,11 @@ public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 
 public void CheckWinLimit(int winner_score)
 {	
+	if (IsMapEndVoteModeEnabled())
+	{
+		return;
+	}
+
 	if (g_ConVars[mp_winlimit])
 	{
 		int winlimit = g_ConVars[mp_winlimit].IntValue;
@@ -610,6 +825,11 @@ public void CheckWinLimit(int winner_score)
 
 public void CheckMaxRounds(int roundcount)
 {		
+	if (IsMapEndVoteModeEnabled())
+	{
+		return;
+	}
+
 	if (g_ConVars[mp_maxrounds])
 	{
 		int maxrounds = g_ConVars[mp_maxrounds].IntValue;
@@ -625,7 +845,7 @@ public void CheckMaxRounds(int roundcount)
 
 public void Event_PlayerDeath(Event event, const char[] name, bool dontBroadcast)
 {
-	if (!g_MapList.Length || !g_ConVars[mp_fraglimit] || g_HasVoteStarted)
+	if (IsMapEndVoteModeEnabled() || !g_MapList.Length || !g_ConVars[mp_fraglimit] || g_HasVoteStarted)
 	{
 		return;
 	}
@@ -676,7 +896,6 @@ void ShuffleNominations()
  *
  * @param when			When the resulting map change should occur.
  * @param inputlist		Optional list of maps to use for the vote, otherwise an internal list of nominations + random maps will be used.
- * @param noSpecials	Block special vote options like extend/nochange (upgrade this to bitflags instead?)
  */
 void InitiateVote(MapChange when, ArrayList inputlist=null)
 {
@@ -751,7 +970,7 @@ void InitiateVote(MapChange when, ArrayList inputlist=null)
 				voteSize = maxItems;
 			}
 
-			if (g_ConVars[mapvote_extend].IntValue && g_Extends < g_ConVars[mapvote_extend].IntValue)
+			if (!g_MapEndVoteTriggered && g_ConVars[mapvote_extend].IntValue && g_Extends < g_ConVars[mapvote_extend].IntValue)
 			{
 				voteSize--;
 			}
@@ -865,8 +1084,8 @@ void InitiateVote(MapChange when, ArrayList inputlist=null)
 		}
 	}
 	
-	/* Do we add any special items? */
-	if ((when == MapChange_Instant || when == MapChange_RoundEnd) && g_ConVars[mapvote_dontchange].BoolValue)
+	/* Do we add any special items? Extending is no longer possible once TF2 is in intermission. */
+	if (!g_MapEndVoteTriggered && (when == MapChange_Instant || when == MapChange_RoundEnd) && g_ConVars[mapvote_dontchange].BoolValue)
 	{
 		if (g_NativeVotes)
 		{
@@ -877,7 +1096,7 @@ void InitiateVote(MapChange when, ArrayList inputlist=null)
 			g_VoteMenu.AddItem(VOTE_DONTCHANGE, "Don't Change");
 		}
 	}
-	else if (g_ConVars[mapvote_extend].BoolValue && g_Extends < g_ConVars[mapvote_extend].IntValue)
+	else if (!g_MapEndVoteTriggered && g_ConVars[mapvote_extend].BoolValue && g_Extends < g_ConVars[mapvote_extend].IntValue)
 	{
 		if (g_NativeVotes)
 		{
@@ -1043,6 +1262,7 @@ public void Handler_VoteFinishedGenericShared(const char[] map, const char[] dis
 		Format(buffer, sizeof(buffer), "\x05%s\x01", displayName);
 		CPrintToChatAll(PLUGIN_PREFIX ... " %t", "Nextmap Voting Finished", buffer, RoundToFloor(float(item_info[0][VOTEINFO_ITEM_VOTES])/float(num_votes)*100), num_votes);
 		LogAction(-1, -1, "Voting for next map has finished. Nextmap: %s.", map);
+		ScheduleChangeAfterMapEndVote();
 	}	
 }
 
@@ -1222,6 +1442,7 @@ public int Handler_MapVoteMenu(Menu menu, MenuAction action, int param1, int par
 			}
 			
 			g_HasVoteStarted = false;
+			ScheduleChangeAfterMapEndVote();
 		}
 	}
 	
@@ -1299,6 +1520,7 @@ public int Handler_NV_MapVoteMenu(NativeVote menu, MenuAction action, int param1
 			}
 			
 			g_HasVoteStarted = false;
+			ScheduleChangeAfterMapEndVote();
 		}
 	}
 	
@@ -1429,7 +1651,7 @@ NominateResult InternalNominateMap(char[] map, bool force, int owner)
 			maxIncludes = g_ConVars[mapvote_include].IntValue;
 		}
 		
-		if (g_ConVars[mapvote_extend].BoolValue && g_Extends < g_ConVars[mapvote_extend].IntValue)
+		if (!IsMapEndVoteModeEnabled() && g_ConVars[mapvote_extend].BoolValue && g_Extends < g_ConVars[mapvote_extend].IntValue)
 		{
 			maxIncludes--;
 		}

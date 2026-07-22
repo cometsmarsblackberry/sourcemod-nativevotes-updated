@@ -7,6 +7,47 @@
 	
 	"NativeVotes Revote No Time"
 	{
-		"ru"	"Недостаточно времени для повторного голосованиея"
+		"ru"	"Недостаточно времени для повторного голосования"
+	}
+
+	"NativeVotes Command Usage"
+	{
+		"#format"	"{1:s}"
+		"ru"		"Использование: {1}"
+	}
+
+	"NativeVotes Medieval RP Only"
+	{
+		"ru"	"Это голосование доступно только в средневековом режиме."
+	}
+
+	"NativeVotes Medieval RP Enable Title"
+	{
+		"ru"	"Включить автоматический отыгрыш ролей в средневековом режиме?"
+	}
+
+	"NativeVotes Medieval RP Disable Title"
+	{
+		"ru"	"Отключить автоматический отыгрыш ролей в средневековом режиме?"
+	}
+
+	"NativeVotes Medieval RP Enable"
+	{
+		"ru"	"Включить"
+	}
+
+	"NativeVotes Medieval RP Disable"
+	{
+		"ru"	"Отключить"
+	}
+
+	"NativeVotes Medieval RP Enabled"
+	{
+		"ru"	"Автоматический отыгрыш ролей в средневековом режиме включён."
+	}
+
+	"NativeVotes Medieval RP Disabled"
+	{
+		"ru"	"Автоматический отыгрыш ролей в средневековом режиме отключён."
 	}
 }

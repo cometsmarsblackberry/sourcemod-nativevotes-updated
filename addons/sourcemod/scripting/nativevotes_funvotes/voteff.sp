@@ -109,7 +109,7 @@ public Action Command_VoteFF(int client, int args)
 {
 	if (args > 0)
 	{
-		CReplyToCommand(client, PLUGIN_PREFIX ... " Usage: sm_voteff");
+		CReplyToCommand(client, PLUGIN_PREFIX ... " %t", "NativeVotes Command Usage", "sm_voteff");
 		return Plugin_Handled;
 	}
 	

@@ -1,0 +1,53 @@
+"Phrases"
+{
+	"NativeVotes Revote"
+	{
+		"ms"	"Mengundi semula..."
+	}
+
+	"NativeVotes Revote No Time"
+	{
+		"ms"	"Masa tidak mencukupi untuk mengundi semula"
+	}
+
+	"NativeVotes Command Usage"
+	{
+		"#format"	"{1:s}"
+		"ms"		"Penggunaan: {1}"
+	}
+
+	"NativeVotes Medieval RP Only"
+	{
+		"ms"	"Undian ini hanya tersedia dalam Mod Zaman Pertengahan."
+	}
+
+	"NativeVotes Medieval RP Enable Title"
+	{
+		"ms"	"Aktifkan lakonan watak automatik dalam Mod Zaman Pertengahan?"
+	}
+
+	"NativeVotes Medieval RP Disable Title"
+	{
+		"ms"	"Nyahaktifkan lakonan watak automatik dalam Mod Zaman Pertengahan?"
+	}
+
+	"NativeVotes Medieval RP Enable"
+	{
+		"ms"	"Aktifkan"
+	}
+
+	"NativeVotes Medieval RP Disable"
+	{
+		"ms"	"Nyahaktifkan"
+	}
+
+	"NativeVotes Medieval RP Enabled"
+	{
+		"ms"	"Lakonan watak automatik dalam Mod Zaman Pertengahan telah diaktifkan."
+	}
+
+	"NativeVotes Medieval RP Disabled"
+	{
+		"ms"	"Lakonan watak automatik dalam Mod Zaman Pertengahan telah dinyahaktifkan."
+	}
+}

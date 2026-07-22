@@ -249,7 +249,7 @@ public Action Command_Votemap(int client, int args)
 {
 	if (args < 1)
 	{
-		CReplyToCommand(client, PLUGIN_PREFIX ... " Usage: sm_votemap <mapname> [mapname2] ... [mapname5]");
+		CReplyToCommand(client, PLUGIN_PREFIX ... " %t", "NativeVotes Command Usage", "sm_votemap <mapname> [mapname2] ... [mapname5]");
 		return Plugin_Handled;
 	}
 	

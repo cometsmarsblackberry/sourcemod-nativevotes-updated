@@ -1,0 +1,53 @@
+"Phrases"
+{
+	"NativeVotes Revote"
+	{
+		"th"	"กำลังลงคะแนนใหม่..."
+	}
+
+	"NativeVotes Revote No Time"
+	{
+		"th"	"มีเวลาไม่เพียงพอสำหรับการลงคะแนนใหม่"
+	}
+
+	"NativeVotes Command Usage"
+	{
+		"#format"	"{1:s}"
+		"th"		"วิธีใช้: {1}"
+	}
+
+	"NativeVotes Medieval RP Only"
+	{
+		"th"	"การลงคะแนนนี้ใช้ได้เฉพาะในโหมดยุคกลางเท่านั้น"
+	}
+
+	"NativeVotes Medieval RP Enable Title"
+	{
+		"th"	"เปิดใช้การสวมบทบาทอัตโนมัติในโหมดยุคกลางหรือไม่"
+	}
+
+	"NativeVotes Medieval RP Disable Title"
+	{
+		"th"	"ปิดการสวมบทบาทอัตโนมัติในโหมดยุคกลางหรือไม่"
+	}
+
+	"NativeVotes Medieval RP Enable"
+	{
+		"th"	"เปิดใช้"
+	}
+
+	"NativeVotes Medieval RP Disable"
+	{
+		"th"	"ปิด"
+	}
+
+	"NativeVotes Medieval RP Enabled"
+	{
+		"th"	"เปิดใช้การสวมบทบาทอัตโนมัติในโหมดยุคกลางแล้ว"
+	}
+
+	"NativeVotes Medieval RP Disabled"
+	{
+		"th"	"ปิดการสวมบทบาทอัตโนมัติในโหมดยุคกลางแล้ว"
+	}
+}

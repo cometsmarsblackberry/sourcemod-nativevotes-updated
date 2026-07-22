@@ -149,7 +149,7 @@ public Action Command_VoteBurn(int client, int args)
 {
 	if (args < 1)
 	{
-		CReplyToCommand(client, PLUGIN_PREFIX ... " Usage: sm_voteburn <player>");
+		CReplyToCommand(client, PLUGIN_PREFIX ... " %t", "NativeVotes Command Usage", "sm_voteburn <player>");
 		return Plugin_Handled;
 	}
 	

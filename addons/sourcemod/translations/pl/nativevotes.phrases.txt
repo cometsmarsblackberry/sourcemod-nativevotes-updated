@@ -2,11 +2,52 @@
 {
 	"NativeVotes Revote"
 	{
-		"pl"	"Ponowne glosowanie..."
+		"pl"	"Ponowne głosowanie..."
 	}
 	
 	"NativeVotes Revote No Time"
 	{
-		"pl"	"Nie ma dosc czasu ponownie glosowac."
+		"pl"	"Za mało czasu na ponowne głosowanie."
+	}
+
+	"NativeVotes Command Usage"
+	{
+		"#format"	"{1:s}"
+		"pl"		"Użycie: {1}"
+	}
+
+	"NativeVotes Medieval RP Only"
+	{
+		"pl"	"To głosowanie jest dostępne tylko w trybie średniowiecznym."
+	}
+
+	"NativeVotes Medieval RP Enable Title"
+	{
+		"pl"	"Włączyć automatyczne odgrywanie ról w trybie średniowiecznym?"
+	}
+
+	"NativeVotes Medieval RP Disable Title"
+	{
+		"pl"	"Wyłączyć automatyczne odgrywanie ról w trybie średniowiecznym?"
+	}
+
+	"NativeVotes Medieval RP Enable"
+	{
+		"pl"	"Włącz"
+	}
+
+	"NativeVotes Medieval RP Disable"
+	{
+		"pl"	"Wyłącz"
+	}
+
+	"NativeVotes Medieval RP Enabled"
+	{
+		"pl"	"Automatyczne odgrywanie ról w trybie średniowiecznym zostało włączone."
+	}
+
+	"NativeVotes Medieval RP Disabled"
+	{
+		"pl"	"Automatyczne odgrywanie ról w trybie średniowiecznym zostało wyłączone."
 	}
 }

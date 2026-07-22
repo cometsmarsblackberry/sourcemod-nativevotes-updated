@@ -151,7 +151,7 @@ public Action Command_VoteSlay(int client, int args)
 {
 	if (args < 1)
 	{
-		CReplyToCommand(client, PLUGIN_PREFIX ... " Usage: sm_voteslay <player>");
+		CReplyToCommand(client, PLUGIN_PREFIX ... " %t", "NativeVotes Command Usage", "sm_voteslay <player>");
 		return Plugin_Handled;
 	}
 	

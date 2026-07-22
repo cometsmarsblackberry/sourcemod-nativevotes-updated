@@ -1,0 +1,53 @@
+"Phrases"
+{
+	"NativeVotes Revote"
+	{
+		"fi"	"Äänestetään uudelleen..."
+	}
+
+	"NativeVotes Revote No Time"
+	{
+		"fi"	"Ei tarpeeksi aikaa äänestää uudelleen"
+	}
+
+	"NativeVotes Command Usage"
+	{
+		"#format"	"{1:s}"
+		"fi"		"Käyttö: {1}"
+	}
+
+	"NativeVotes Medieval RP Only"
+	{
+		"fi"	"Tämä äänestys on käytettävissä vain keskiaikatilassa."
+	}
+
+	"NativeVotes Medieval RP Enable Title"
+	{
+		"fi"	"Otetaanko keskiaikatilan automaattinen roolipelaaminen käyttöön?"
+	}
+
+	"NativeVotes Medieval RP Disable Title"
+	{
+		"fi"	"Poistetaanko keskiaikatilan automaattinen roolipelaaminen käytöstä?"
+	}
+
+	"NativeVotes Medieval RP Enable"
+	{
+		"fi"	"Ota käyttöön"
+	}
+
+	"NativeVotes Medieval RP Disable"
+	{
+		"fi"	"Poista käytöstä"
+	}
+
+	"NativeVotes Medieval RP Enabled"
+	{
+		"fi"	"Keskiaikatilan automaattinen roolipelaaminen on otettu käyttöön."
+	}
+
+	"NativeVotes Medieval RP Disabled"
+	{
+		"fi"	"Keskiaikatilan automaattinen roolipelaaminen on poistettu käytöstä."
+	}
+}

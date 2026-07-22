@@ -9,4 +9,45 @@
 	{
 		"en"	"Not enough time to revote"
 	}
+
+	"NativeVotes Command Usage"
+	{
+		"#format"	"{1:s}"
+		"en"		"Usage: {1}"
+	}
+
+	"NativeVotes Medieval RP Only"
+	{
+		"en"	"This vote is only available in Medieval Mode."
+	}
+
+	"NativeVotes Medieval RP Enable Title"
+	{
+		"en"	"Enable Medieval Mode auto-roleplaying?"
+	}
+
+	"NativeVotes Medieval RP Disable Title"
+	{
+		"en"	"Disable Medieval Mode auto-roleplaying?"
+	}
+
+	"NativeVotes Medieval RP Enable"
+	{
+		"en"	"Enable"
+	}
+
+	"NativeVotes Medieval RP Disable"
+	{
+		"en"	"Disable"
+	}
+
+	"NativeVotes Medieval RP Enabled"
+	{
+		"en"	"Medieval Mode auto-roleplaying has been enabled."
+	}
+
+	"NativeVotes Medieval RP Disabled"
+	{
+		"en"	"Medieval Mode auto-roleplaying has been disabled."
+	}
 }

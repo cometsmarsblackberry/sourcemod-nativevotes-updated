@@ -1,0 +1,53 @@
+"Phrases"
+{
+	"NativeVotes Revote"
+	{
+		"sv"	"Röstar igen..."
+	}
+
+	"NativeVotes Revote No Time"
+	{
+		"sv"	"Inte tillräckligt med tid för att rösta igen"
+	}
+
+	"NativeVotes Command Usage"
+	{
+		"#format"	"{1:s}"
+		"sv"		"Användning: {1}"
+	}
+
+	"NativeVotes Medieval RP Only"
+	{
+		"sv"	"Den här omröstningen är bara tillgänglig i medeltidsläget."
+	}
+
+	"NativeVotes Medieval RP Enable Title"
+	{
+		"sv"	"Aktivera automatiskt rollspel i medeltidsläget?"
+	}
+
+	"NativeVotes Medieval RP Disable Title"
+	{
+		"sv"	"Inaktivera automatiskt rollspel i medeltidsläget?"
+	}
+
+	"NativeVotes Medieval RP Enable"
+	{
+		"sv"	"Aktivera"
+	}
+
+	"NativeVotes Medieval RP Disable"
+	{
+		"sv"	"Inaktivera"
+	}
+
+	"NativeVotes Medieval RP Enabled"
+	{
+		"sv"	"Automatiskt rollspel i medeltidsläget har aktiverats."
+	}
+
+	"NativeVotes Medieval RP Disabled"
+	{
+		"sv"	"Automatiskt rollspel i medeltidsläget har inaktiverats."
+	}
+}

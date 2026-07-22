@@ -59,6 +59,9 @@ This fork aims to expand upon [<img src="https://avatars.githubusercontent.com/u
 |`sm_nominate_maxfound`|`0`|Maximum number of nomination matches to add to the menu.<br>0 = infinite|
 
 ## [MapChooser](https://github.com/Heapons/sourcemod-nativevotes-updated/blob/master/addons/sourcemod/scripting/nativevotes_mapchooser.sp)
+- Start the next-map vote at TF2's actual map end by setting `sm_mapvote_start` to `0`.
+  - MapChooser temporarily extends the intermission to fit the vote (including a possible runoff), closes the automatically opened scoreboard, and changes to the selected map once the result is ready.
+  - The `Extend Map` option is not offered in this mode because TF2 has already committed to changing levels.
 - <img src="https://cdn.fastly.steamstatic.com/steamcommunity/public/images/apps/440/033bdd91842b6aca0633ee1e5f3e6b82f2e8962f.ico" width="16" height="16" style="vertical-align: text-bottom;"> Clean up workshop maps to reduce disk size.
 - Automatically generate the mapcycle file.
   -  <img src="https://cdn.fastly.steamstatic.com/steamcommunity/public/images/apps/440/033bdd91842b6aca0633ee1e5f3e6b82f2e8962f.ico" width="16" height="16" style="vertical-align: text-bottom;"> Import Workshop map collections (requires [Rest In Pawn](https://github.com/srcdslab/sm-ext-ripext) in order to use that feature).
@@ -67,7 +70,7 @@ This fork aims to expand upon [<img src="https://avatars.githubusercontent.com/u
 |Name|Default Value|Description|
 |-|-|-|
 |`sm_mapvote_endvote`|`1`|Specifies if MapChooser should run an end of map vote|
-|`sm_mapvote_start`|`3.0`|Specifies when to start the vote based on time remaining (in minutes)|
+|`sm_mapvote_start`|`3.0`|Specifies when to start the vote based on time remaining (in minutes). Set to `0` on TF2 to start it when the map ends|
 |`sm_mapvote_startround`|`2.0`|Specifies when to start the vote based on rounds remaining. Use '0' on TF2 to start vote during bonus round time|
 |`sm_mapvote_startfrags`|`5.0`|Specifies when to start the vote based on frags remaining|
 |`sm_extendmap_timestep`|`15`|Specifies how many more minutes each extension makes|

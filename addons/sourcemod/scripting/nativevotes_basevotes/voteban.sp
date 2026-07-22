@@ -138,7 +138,7 @@ public Action Command_Voteban(int client, int args)
 {
 	if (args < 1)
 	{
-		CReplyToCommand(client, PLUGIN_PREFIX ... " Usage: sm_voteban <player> [reason]");
+		CReplyToCommand(client, PLUGIN_PREFIX ... " %t", "NativeVotes Command Usage", "sm_voteban <player> [reason]");
 		return Plugin_Handled;
 	}
 	

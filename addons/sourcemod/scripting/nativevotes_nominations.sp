@@ -88,6 +88,7 @@ public void OnPluginStart()
 {
 	LoadTranslations("common.phrases");
 	LoadTranslations("nominations.phrases");
+	LoadTranslations("nativevotes.phrases.txt");
 	
 	g_MapList = new ArrayList(ByteCountToCells(PLATFORM_MAX_PATH));
 
@@ -196,7 +197,7 @@ public Action Command_Addmap(int client, int args)
 {
 	if (args < 1)
 	{
-		CReplyToCommand(client, PLUGIN_PREFIX ... " Usage: sm_nominate_addmap <mapname>");
+		CReplyToCommand(client, PLUGIN_PREFIX ... " %t", "NativeVotes Command Usage", "sm_nominate_addmap <mapname>");
 		return Plugin_Handled;
 	}
 	
@@ -308,7 +309,7 @@ public Action Command_Nominate(int client, int args)
 
 		// Display results to the client and end
 		Menu menu = new Menu(MenuHandler_MapSelect, MENU_ACTIONS_DEFAULT|MenuAction_DrawItem|MenuAction_DisplayItem);
-		menu.SetTitle("Select map");
+		menu.SetTitle("%T", "Nominate Title", client);
 		
 		for (int i = 0; i < results.Length; i++)
 		{
@@ -466,7 +467,7 @@ void AttemptNominate(int client, const char[] map, int size, bool isVoteMenu)
 
 void OpenNominationMenu(int client)
 {
-	g_MapMenu.SetTitle("%t", "Nominate Title", client);
+	g_MapMenu.SetTitle("%T", "Nominate Title", client);
 	g_MapMenu.Display(client, MENU_TIME_FOREVER);
 }
 

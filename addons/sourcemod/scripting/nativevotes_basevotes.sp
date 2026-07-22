@@ -121,6 +121,7 @@ public void OnPluginStart()
 	LoadTranslations("basevotes.phrases");
 	LoadTranslations("plugin.basecommands");
 	LoadTranslations("basebans.phrases");
+	LoadTranslations("nativevotes.phrases.txt");
     
 	RegAdminCmd("sm_votemap", Command_Votemap, ADMFLAG_VOTE|ADMFLAG_CHANGEMAP, "sm_votemap <mapname> [mapname2] ... [mapname5] ");
 	RegAdminCmd("sm_votekick", Command_Votekick, ADMFLAG_VOTE|ADMFLAG_KICK, "sm_votekick <player> [reason]");
@@ -349,7 +350,7 @@ public Action Command_Vote(int client, int args)
 {
 	if (args < 1)
 	{
-	    CReplyToCommand(client, PLUGIN_PREFIX ... " Usage: sm_vote <title> [option1] [option2] ... [option5]");
+	    CReplyToCommand(client, PLUGIN_PREFIX ... " %t", "NativeVotes Command Usage", "sm_vote <title> [option1] [option2] ... [option5]");
 		return Plugin_Handled;
 	}
 	

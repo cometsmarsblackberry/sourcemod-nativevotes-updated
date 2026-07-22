@@ -137,7 +137,7 @@ public Action Command_Votekick(int client, int args)
 {
 	if (args < 1)
 	{
-		CReplyToCommand(client, PLUGIN_PREFIX ... " Usage: sm_votekick <player> [reason]");
+		CReplyToCommand(client, PLUGIN_PREFIX ... " %t", "NativeVotes Command Usage", "sm_votekick <player> [reason]");
 		return Plugin_Handled;
 	}
 	if (Internal_IsVoteInProgress())

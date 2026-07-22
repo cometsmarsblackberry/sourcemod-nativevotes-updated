@@ -1,0 +1,53 @@
+"Phrases"
+{
+	"NativeVotes Revote"
+	{
+		"et"	"Kordushääletus..."
+	}
+
+	"NativeVotes Revote No Time"
+	{
+		"et"	"Uuesti hääletamiseks pole piisavalt aega"
+	}
+
+	"NativeVotes Command Usage"
+	{
+		"#format"	"{1:s}"
+		"et"		"Kasutus: {1}"
+	}
+
+	"NativeVotes Medieval RP Only"
+	{
+		"et"	"See hääletus on saadaval ainult keskaegses režiimis."
+	}
+
+	"NativeVotes Medieval RP Enable Title"
+	{
+		"et"	"Kas lubada keskaegse režiimi automaatne rollimäng?"
+	}
+
+	"NativeVotes Medieval RP Disable Title"
+	{
+		"et"	"Kas keelata keskaegse režiimi automaatne rollimäng?"
+	}
+
+	"NativeVotes Medieval RP Enable"
+	{
+		"et"	"Luba"
+	}
+
+	"NativeVotes Medieval RP Disable"
+	{
+		"et"	"Keela"
+	}
+
+	"NativeVotes Medieval RP Enabled"
+	{
+		"et"	"Keskaegse režiimi automaatne rollimäng on lubatud."
+	}
+
+	"NativeVotes Medieval RP Disabled"
+	{
+		"et"	"Keskaegse režiimi automaatne rollimäng on keelatud."
+	}
+}

@@ -2,11 +2,52 @@
 {
 	"NativeVotes Revote"
 	{
-		"chi"	"重新投票中..."
+		"chi"	"正在重新投票..."
 	}
 	
 	"NativeVotes Revote No Time"
 	{
-		"chi"	"没有足够的时间重新投票"
+		"chi"	"没有足够时间重新投票"
+	}
+
+	"NativeVotes Command Usage"
+	{
+		"#format"	"{1:s}"
+		"chi"		"用法：{1}"
+	}
+
+	"NativeVotes Medieval RP Only"
+	{
+		"chi"	"此投票仅在中世纪模式下可用。"
+	}
+
+	"NativeVotes Medieval RP Enable Title"
+	{
+		"chi"	"启用中世纪模式自动角色扮演？"
+	}
+
+	"NativeVotes Medieval RP Disable Title"
+	{
+		"chi"	"禁用中世纪模式自动角色扮演？"
+	}
+
+	"NativeVotes Medieval RP Enable"
+	{
+		"chi"	"启用"
+	}
+
+	"NativeVotes Medieval RP Disable"
+	{
+		"chi"	"禁用"
+	}
+
+	"NativeVotes Medieval RP Enabled"
+	{
+		"chi"	"中世纪模式自动角色扮演已启用。"
+	}
+
+	"NativeVotes Medieval RP Disabled"
+	{
+		"chi"	"中世纪模式自动角色扮演已禁用。"
 	}
 }

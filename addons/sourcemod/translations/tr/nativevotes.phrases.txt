@@ -7,6 +7,47 @@
 	
 	"NativeVotes Revote No Time"
 	{
-		"tr"	"Tekrar oy vermek için yeterli zaman yok."
+		"tr"	"Oylamayı tekrarlamak için yeterli süre yok."
+	}
+
+	"NativeVotes Command Usage"
+	{
+		"#format"	"{1:s}"
+		"tr"		"Kullanım: {1}"
+	}
+
+	"NativeVotes Medieval RP Only"
+	{
+		"tr"	"Bu oylama yalnızca Orta Çağ Modunda kullanılabilir."
+	}
+
+	"NativeVotes Medieval RP Enable Title"
+	{
+		"tr"	"Orta Çağ Modunda otomatik rol yapma etkinleştirilsin mi?"
+	}
+
+	"NativeVotes Medieval RP Disable Title"
+	{
+		"tr"	"Orta Çağ Modunda otomatik rol yapma devre dışı bırakılsın mı?"
+	}
+
+	"NativeVotes Medieval RP Enable"
+	{
+		"tr"	"Etkinleştir"
+	}
+
+	"NativeVotes Medieval RP Disable"
+	{
+		"tr"	"Devre Dışı Bırak"
+	}
+
+	"NativeVotes Medieval RP Enabled"
+	{
+		"tr"	"Orta Çağ Modunda otomatik rol yapma etkinleştirildi."
+	}
+
+	"NativeVotes Medieval RP Disabled"
+	{
+		"tr"	"Orta Çağ Modunda otomatik rol yapma devre dışı bırakıldı."
 	}
 }

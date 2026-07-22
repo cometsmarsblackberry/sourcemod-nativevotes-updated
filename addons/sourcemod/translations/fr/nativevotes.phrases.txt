@@ -2,11 +2,52 @@
 {
 	"NativeVotes Revote"
 	{
-		"fr"	"Ré-ouverture du vote..."
+		"fr"	"Nouveau vote en cours..."
 	}
 	
 	"NativeVotes Revote No Time"
 	{
-		"fr"	"Temps insuffisant pour voter à nouveau"
+		"fr"	"Pas assez de temps pour voter à nouveau"
+	}
+
+	"NativeVotes Command Usage"
+	{
+		"#format"	"{1:s}"
+		"fr"		"Utilisation : {1}"
+	}
+
+	"NativeVotes Medieval RP Only"
+	{
+		"fr"	"Ce vote n'est disponible qu'en mode Médiéval."
+	}
+
+	"NativeVotes Medieval RP Enable Title"
+	{
+		"fr"	"Activer le jeu de rôle automatique en mode Médiéval ?"
+	}
+
+	"NativeVotes Medieval RP Disable Title"
+	{
+		"fr"	"Désactiver le jeu de rôle automatique en mode Médiéval ?"
+	}
+
+	"NativeVotes Medieval RP Enable"
+	{
+		"fr"	"Activer"
+	}
+
+	"NativeVotes Medieval RP Disable"
+	{
+		"fr"	"Désactiver"
+	}
+
+	"NativeVotes Medieval RP Enabled"
+	{
+		"fr"	"Le jeu de rôle automatique en mode Médiéval a été activé."
+	}
+
+	"NativeVotes Medieval RP Disabled"
+	{
+		"fr"	"Le jeu de rôle automatique en mode Médiéval a été désactivé."
 	}
 }

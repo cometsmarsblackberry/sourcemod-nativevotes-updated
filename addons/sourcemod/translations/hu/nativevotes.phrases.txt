@@ -2,11 +2,52 @@
 {
 	"NativeVotes Revote"
 	{
-		"hu"	"Ujraszavazas..."
+		"hu"	"Újraszavazás..."
 	}
 	
 	"NativeVotes Revote No Time"
 	{
-		"hu"	"Nincs eleg ido az ujraszavazasra"
+		"hu"	"Nincs elég idő az újraszavazásra"
+	}
+
+	"NativeVotes Command Usage"
+	{
+		"#format"	"{1:s}"
+		"hu"		"Használat: {1}"
+	}
+
+	"NativeVotes Medieval RP Only"
+	{
+		"hu"	"Ez a szavazás csak Középkori módban érhető el."
+	}
+
+	"NativeVotes Medieval RP Enable Title"
+	{
+		"hu"	"Engedélyezi a Középkori mód automatikus szerepjátékát?"
+	}
+
+	"NativeVotes Medieval RP Disable Title"
+	{
+		"hu"	"Letiltja a Középkori mód automatikus szerepjátékát?"
+	}
+
+	"NativeVotes Medieval RP Enable"
+	{
+		"hu"	"Engedélyezés"
+	}
+
+	"NativeVotes Medieval RP Disable"
+	{
+		"hu"	"Letiltás"
+	}
+
+	"NativeVotes Medieval RP Enabled"
+	{
+		"hu"	"A Középkori mód automatikus szerepjátéka engedélyezve lett."
+	}
+
+	"NativeVotes Medieval RP Disabled"
+	{
+		"hu"	"A Középkori mód automatikus szerepjátéka le lett tiltva."
 	}
 }

@@ -9,4 +9,45 @@
 	{
 		"nl"	"Er is niet genoeg tijd om opnieuw te stemmen."
 	}
+
+	"NativeVotes Command Usage"
+	{
+		"#format"	"{1:s}"
+		"nl"		"Gebruik: {1}"
+	}
+
+	"NativeVotes Medieval RP Only"
+	{
+		"nl"	"Deze stemming is alleen beschikbaar in de middeleeuwse modus."
+	}
+
+	"NativeVotes Medieval RP Enable Title"
+	{
+		"nl"	"Automatisch rollenspel in de middeleeuwse modus inschakelen?"
+	}
+
+	"NativeVotes Medieval RP Disable Title"
+	{
+		"nl"	"Automatisch rollenspel in de middeleeuwse modus uitschakelen?"
+	}
+
+	"NativeVotes Medieval RP Enable"
+	{
+		"nl"	"Inschakelen"
+	}
+
+	"NativeVotes Medieval RP Disable"
+	{
+		"nl"	"Uitschakelen"
+	}
+
+	"NativeVotes Medieval RP Enabled"
+	{
+		"nl"	"Automatisch rollenspel in de middeleeuwse modus is ingeschakeld."
+	}
+
+	"NativeVotes Medieval RP Disabled"
+	{
+		"nl"	"Automatisch rollenspel in de middeleeuwse modus is uitgeschakeld."
+	}
 }

@@ -1,0 +1,53 @@
+"Phrases"
+{
+	"NativeVotes Revote"
+	{
+		"vi"	"Đang bỏ phiếu lại..."
+	}
+
+	"NativeVotes Revote No Time"
+	{
+		"vi"	"Không đủ thời gian để bỏ phiếu lại"
+	}
+
+	"NativeVotes Command Usage"
+	{
+		"#format"	"{1:s}"
+		"vi"		"Cách dùng: {1}"
+	}
+
+	"NativeVotes Medieval RP Only"
+	{
+		"vi"	"Cuộc bỏ phiếu này chỉ khả dụng trong Chế độ Trung Cổ."
+	}
+
+	"NativeVotes Medieval RP Enable Title"
+	{
+		"vi"	"Bật tự động nhập vai trong Chế độ Trung Cổ?"
+	}
+
+	"NativeVotes Medieval RP Disable Title"
+	{
+		"vi"	"Tắt tự động nhập vai trong Chế độ Trung Cổ?"
+	}
+
+	"NativeVotes Medieval RP Enable"
+	{
+		"vi"	"Bật"
+	}
+
+	"NativeVotes Medieval RP Disable"
+	{
+		"vi"	"Tắt"
+	}
+
+	"NativeVotes Medieval RP Enabled"
+	{
+		"vi"	"Đã bật tự động nhập vai trong Chế độ Trung Cổ."
+	}
+
+	"NativeVotes Medieval RP Disabled"
+	{
+		"vi"	"Đã tắt tự động nhập vai trong Chế độ Trung Cổ."
+	}
+}

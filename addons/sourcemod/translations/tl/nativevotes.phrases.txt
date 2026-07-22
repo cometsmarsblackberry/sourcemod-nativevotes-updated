@@ -1,0 +1,53 @@
+"Phrases"
+{
+	"NativeVotes Revote"
+	{
+		"tl"	"Muling pagboto..."
+	}
+
+	"NativeVotes Revote No Time"
+	{
+		"tl"	"Walang sapat na oras para bumoto muli"
+	}
+
+	"NativeVotes Command Usage"
+	{
+		"#format"	"{1:s}"
+		"tl"		"Paggamit: {1}"
+	}
+
+	"NativeVotes Medieval RP Only"
+	{
+		"tl"	"Magagamit lamang ang botong ito sa Medieval Mode."
+	}
+
+	"NativeVotes Medieval RP Enable Title"
+	{
+		"tl"	"Paganahin ang awtomatikong roleplay sa Medieval Mode?"
+	}
+
+	"NativeVotes Medieval RP Disable Title"
+	{
+		"tl"	"I-disable ang awtomatikong roleplay sa Medieval Mode?"
+	}
+
+	"NativeVotes Medieval RP Enable"
+	{
+		"tl"	"Paganahin"
+	}
+
+	"NativeVotes Medieval RP Disable"
+	{
+		"tl"	"I-disable"
+	}
+
+	"NativeVotes Medieval RP Enabled"
+	{
+		"tl"	"Pinagana ang awtomatikong roleplay sa Medieval Mode."
+	}
+
+	"NativeVotes Medieval RP Disabled"
+	{
+		"tl"	"Na-disable ang awtomatikong roleplay sa Medieval Mode."
+	}
+}

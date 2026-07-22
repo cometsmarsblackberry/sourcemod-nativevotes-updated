@@ -1,0 +1,53 @@
+"Phrases"
+{
+	"NativeVotes Revote"
+	{
+		"ko"	"재투표 중..."
+	}
+
+	"NativeVotes Revote No Time"
+	{
+		"ko"	"재투표할 시간이 부족합니다"
+	}
+
+	"NativeVotes Command Usage"
+	{
+		"#format"	"{1:s}"
+		"ko"		"사용법: {1}"
+	}
+
+	"NativeVotes Medieval RP Only"
+	{
+		"ko"	"이 투표는 중세 모드에서만 사용할 수 있습니다."
+	}
+
+	"NativeVotes Medieval RP Enable Title"
+	{
+		"ko"	"중세 모드 자동 역할극을 활성화하시겠습니까?"
+	}
+
+	"NativeVotes Medieval RP Disable Title"
+	{
+		"ko"	"중세 모드 자동 역할극을 비활성화하시겠습니까?"
+	}
+
+	"NativeVotes Medieval RP Enable"
+	{
+		"ko"	"활성화"
+	}
+
+	"NativeVotes Medieval RP Disable"
+	{
+		"ko"	"비활성화"
+	}
+
+	"NativeVotes Medieval RP Enabled"
+	{
+		"ko"	"중세 모드 자동 역할극이 활성화되었습니다."
+	}
+
+	"NativeVotes Medieval RP Disabled"
+	{
+		"ko"	"중세 모드 자동 역할극이 비활성화되었습니다."
+	}
+}

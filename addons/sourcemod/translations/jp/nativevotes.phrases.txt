@@ -1,0 +1,53 @@
+"Phrases"
+{
+	"NativeVotes Revote"
+	{
+		"jp"	"再投票中..."
+	}
+
+	"NativeVotes Revote No Time"
+	{
+		"jp"	"再投票する時間が足りません"
+	}
+
+	"NativeVotes Command Usage"
+	{
+		"#format"	"{1:s}"
+		"jp"		"使用法: {1}"
+	}
+
+	"NativeVotes Medieval RP Only"
+	{
+		"jp"	"この投票は中世モードでのみ利用できます。"
+	}
+
+	"NativeVotes Medieval RP Enable Title"
+	{
+		"jp"	"中世モードの自動ロールプレイを有効にしますか？"
+	}
+
+	"NativeVotes Medieval RP Disable Title"
+	{
+		"jp"	"中世モードの自動ロールプレイを無効にしますか？"
+	}
+
+	"NativeVotes Medieval RP Enable"
+	{
+		"jp"	"有効にする"
+	}
+
+	"NativeVotes Medieval RP Disable"
+	{
+		"jp"	"無効にする"
+	}
+
+	"NativeVotes Medieval RP Enabled"
+	{
+		"jp"	"中世モードの自動ロールプレイが有効になりました。"
+	}
+
+	"NativeVotes Medieval RP Disabled"
+	{
+		"jp"	"中世モードの自動ロールプレイが無効になりました。"
+	}
+}

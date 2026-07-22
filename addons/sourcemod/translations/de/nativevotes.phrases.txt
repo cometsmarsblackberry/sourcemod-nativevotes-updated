@@ -2,11 +2,52 @@
 {
 	"NativeVotes Revote"
 	{
-		"de"	"Erneute Abstimmung..."
+		"de"	"Erneute Abstimmung läuft..."
 	}
 	
 	"NativeVotes Revote No Time"
 	{
-		"de"	"Es ist nicht genug Zeit um eine neue Abstimmung zu starten."
+		"de"	"Nicht genug Zeit für eine erneute Abstimmung"
+	}
+
+	"NativeVotes Command Usage"
+	{
+		"#format"	"{1:s}"
+		"de"		"Verwendung: {1}"
+	}
+
+	"NativeVotes Medieval RP Only"
+	{
+		"de"	"Diese Abstimmung ist nur im Mittelaltermodus verfügbar."
+	}
+
+	"NativeVotes Medieval RP Enable Title"
+	{
+		"de"	"Automatisches Rollenspiel im Mittelaltermodus aktivieren?"
+	}
+
+	"NativeVotes Medieval RP Disable Title"
+	{
+		"de"	"Automatisches Rollenspiel im Mittelaltermodus deaktivieren?"
+	}
+
+	"NativeVotes Medieval RP Enable"
+	{
+		"de"	"Aktivieren"
+	}
+
+	"NativeVotes Medieval RP Disable"
+	{
+		"de"	"Deaktivieren"
+	}
+
+	"NativeVotes Medieval RP Enabled"
+	{
+		"de"	"Automatisches Rollenspiel im Mittelaltermodus wurde aktiviert."
+	}
+
+	"NativeVotes Medieval RP Disabled"
+	{
+		"de"	"Automatisches Rollenspiel im Mittelaltermodus wurde deaktiviert."
 	}
 }

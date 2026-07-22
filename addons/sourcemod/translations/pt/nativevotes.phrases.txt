@@ -1,0 +1,53 @@
+"Phrases"
+{
+	"NativeVotes Revote"
+	{
+		"pt"	"Votando novamente..."
+	}
+
+	"NativeVotes Revote No Time"
+	{
+		"pt"	"Não há tempo suficiente para votar novamente"
+	}
+
+	"NativeVotes Command Usage"
+	{
+		"#format"	"{1:s}"
+		"pt"		"Uso: {1}"
+	}
+
+	"NativeVotes Medieval RP Only"
+	{
+		"pt"	"Esta votação só está disponível no Modo Medieval."
+	}
+
+	"NativeVotes Medieval RP Enable Title"
+	{
+		"pt"	"Ativar o roleplay automático do Modo Medieval?"
+	}
+
+	"NativeVotes Medieval RP Disable Title"
+	{
+		"pt"	"Desativar o roleplay automático do Modo Medieval?"
+	}
+
+	"NativeVotes Medieval RP Enable"
+	{
+		"pt"	"Ativar"
+	}
+
+	"NativeVotes Medieval RP Disable"
+	{
+		"pt"	"Desativar"
+	}
+
+	"NativeVotes Medieval RP Enabled"
+	{
+		"pt"	"O roleplay automático do Modo Medieval foi ativado."
+	}
+
+	"NativeVotes Medieval RP Disabled"
+	{
+		"pt"	"O roleplay automático do Modo Medieval foi desativado."
+	}
+}

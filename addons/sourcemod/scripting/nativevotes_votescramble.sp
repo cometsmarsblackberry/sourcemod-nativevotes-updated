@@ -334,12 +334,6 @@ void AttemptScramble(int client, bool isVoteMenu=false)
         return;
     }
 
-    if (g_NativeVotes && NativeVotes_IsVoteInProgress())
-    {
-        CReplyToCommand(client, PLUGIN_PREFIX ... " %t", "Vote in Progress");
-        return;
-    }
-
     if (GetClientCount(true) < g_ConVars[minplayers].IntValue)
     {
         CReplyToCommand(client, PLUGIN_PREFIX ... " %t", "Minimal Players Not Met");
@@ -354,6 +348,14 @@ void AttemptScramble(int client, bool isVoteMenu=false)
     {
         CReplyToCommand(client, PLUGIN_PREFIX ... " %t", "Already Voted", g_Votes, g_VotesNeeded);
         UndoScramble(client);
+        return;
+    }
+
+    // Keep collecting requests while another vote runs unless this request would start the scramble vote.
+    bool isVoteInProgress = g_NativeVotes ? NativeVotes_IsVoteInProgress() : IsVoteInProgress();
+    if (g_Votes + 1 >= g_VotesNeeded && isVoteInProgress)
+    {
+        CReplyToCommand(client, PLUGIN_PREFIX ... " %t", "Vote in Progress");
         return;
     }
 

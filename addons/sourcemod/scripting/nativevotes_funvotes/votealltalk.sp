@@ -128,7 +128,7 @@ public Action Command_VoteAlltalk(int client, int args)
 {
 	if (args > 0)
 	{
-		CReplyToCommand(client, PLUGIN_PREFIX ... " Usage: sm_votealltalk");
+		CReplyToCommand(client, PLUGIN_PREFIX ... " %t", "NativeVotes Command Usage", "sm_votealltalk");
 		return Plugin_Handled;
 	}
 	

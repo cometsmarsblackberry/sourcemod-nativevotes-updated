@@ -158,6 +158,7 @@ public void OnPluginStart()
 {
 	LoadTranslations("mapchooser.phrases");
 	LoadTranslations("common.phrases");
+	LoadTranslations("nativevotes.phrases.txt");
 
 	KeyValues kv = new KeyValues("GameInfo");
 	if (kv.ImportFromFile("gameinfo.txt") && kv.JumpToKey("FileSystem"))
@@ -454,7 +455,7 @@ public Action Command_SetNextMap(int client, int args)
 {
 	if (args < 1)
 	{
-		CReplyToCommand(client, PLUGIN_PREFIX ... " Usage: sm_setnextmap <map>");
+		CReplyToCommand(client, PLUGIN_PREFIX ... " %t", "NativeVotes Command Usage", "sm_setnextmap <map>");
 		return Plugin_Handled;
 	}
 

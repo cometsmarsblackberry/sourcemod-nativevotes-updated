@@ -32,6 +32,9 @@ bool g_NativeVotes;
 
 public void OnPluginStart()
 {
+    LoadTranslations("common.phrases");
+    LoadTranslations("nativevotes.phrases.txt");
+
     g_ConVars[tf_medieval] = FindConVar("tf_medieval");
     g_ConVars[tf_medieval_autorp] = FindConVar("tf_medieval_autorp");
     if (FindSendPropInfo("CTFGameRulesProxy", "m_bPlayingMedieval") <= 0)
@@ -76,11 +79,27 @@ int MenuHandler_VoteRP(Menu menu, MenuAction action, int param1, int param2)
             menu.GetItem(item, info, sizeof(info));
             int value = StringToInt(info);
             g_ConVars[tf_medieval_autorp].SetInt(value);
-            CPrintToChatAll(PLUGIN_PREFIX ... " tf_medieval_autorp set to %d", value);
+            CPrintToChatAll(PLUGIN_PREFIX ... " %t", value ? "NativeVotes Medieval RP Enabled" : "NativeVotes Medieval RP Disabled");
         }
         case MenuAction_End:
         {
             delete menu;
+        }
+        case MenuAction_Display:
+        {
+            char phrase[64], title[128];
+            menu.GetTitle(phrase, sizeof(phrase));
+            Format(title, sizeof(title), "%T", phrase, param1);
+
+            Panel panel = view_as<Panel>(param2);
+            panel.SetTitle(title);
+        }
+        case MenuAction_DisplayItem:
+        {
+            char info[8], phrase[64], display[64];
+            menu.GetItem(param2, info, sizeof(info), _, phrase, sizeof(phrase));
+            Format(display, sizeof(display), "%T", phrase, param1);
+            return RedrawMenuItem(display);
         }
     }
     return 0;
@@ -95,36 +114,34 @@ Action Command_VoteRP(int client, int args)
 
     if ((g_NativeVotes && NativeVotes_IsVoteInProgress()) || (!g_NativeVotes && IsVoteInProgress()))
     {
-        CPrintToChat(client, PLUGIN_PREFIX ... " A vote is already in progress.");
+        CPrintToChat(client, PLUGIN_PREFIX ... " %t", "Vote in Progress");
         return Plugin_Handled;
     }
 
     bool isMedieval = g_ConVars[tf_medieval].BoolValue || GameRules_GetProp("m_bPlayingMedieval") || FindEntityByClassname(-1, "tf_logic_medieval") != -1;
     if (!isMedieval)
     {
-        CPrintToChat(client, PLUGIN_PREFIX ... " This vote is only available in Medieval Mode.");
+        CPrintToChat(client, PLUGIN_PREFIX ... " %t", "NativeVotes Medieval RP Only");
         return Plugin_Handled;
     }
 
     bool enabled = g_ConVars[tf_medieval_autorp].BoolValue;
-    char title[64];
-    Format(title, sizeof(title), "%s Medieval Mode auto-roleplaying?", enabled ? "Disable" : "Enable");
 
     if (g_NativeVotes)
     {
         NativeVote vote = NativeVotes_Create(VoteHandler, NativeVotesType_Custom_YesNo, MENU_ACTIONS_ALL);
-        NativeVotes_SetTitle(vote, title);
+        NativeVotes_SetTitle(vote, enabled ? "NativeVotes Medieval RP Disable Title" : "NativeVotes Medieval RP Enable Title");
         NativeVotes_SetInitiator(vote, client);
-        NativeVotes_AddItem(vote, enabled ? "0" : "1", enabled ? "Disable" : "Enable");
-        NativeVotes_AddItem(vote, enabled ? "1" : "0", enabled ? "Enable" : "Disable");
+        NativeVotes_AddItem(vote, enabled ? "0" : "1", enabled ? "NativeVotes Medieval RP Disable" : "NativeVotes Medieval RP Enable");
+        NativeVotes_AddItem(vote, enabled ? "1" : "0", enabled ? "NativeVotes Medieval RP Enable" : "NativeVotes Medieval RP Disable");
         NativeVotes_DisplayToAll(vote, g_ConVars[sv_vote_timer_duration].IntValue);
     }
     else
     {
-        Menu menu = new Menu(MenuHandler_VoteRP);
-        menu.SetTitle(title);
-        menu.AddItem(enabled ? "0" : "1", enabled ? "Disable" : "Enable");
-        menu.AddItem(enabled ? "1" : "0", enabled ? "Enable" : "Disable");
+        Menu menu = new Menu(MenuHandler_VoteRP, MENU_ACTIONS_ALL);
+        menu.SetTitle(enabled ? "NativeVotes Medieval RP Disable Title" : "NativeVotes Medieval RP Enable Title");
+        menu.AddItem(enabled ? "0" : "1", enabled ? "NativeVotes Medieval RP Disable" : "NativeVotes Medieval RP Enable");
+        menu.AddItem(enabled ? "1" : "0", enabled ? "NativeVotes Medieval RP Enable" : "NativeVotes Medieval RP Disable");
         menu.ExitButton = false;
         menu.DisplayVoteToAll(g_ConVars[sv_vote_timer_duration].IntValue);
     }
@@ -143,11 +160,25 @@ int VoteHandler(NativeVote vote, MenuAction action, int param1, int param2)
             NativeVotes_GetItem(vote, item, info, sizeof(info));
             int value = StringToInt(info);
             g_ConVars[tf_medieval_autorp].SetInt(value);
-            NativeVotes_DisplayPass(vote, "Setting 'tf_medieval_autorp' to %s...", value ? "true" : "false");
+            NativeVotes_DisplayPassCustom(vote, "%t", value ? "NativeVotes Medieval RP Enabled" : "NativeVotes Medieval RP Disabled");
         }
         case MenuAction_End:
         {
             NativeVotes_Close(vote);
+        }
+        case MenuAction_Display:
+        {
+            char phrase[64], title[128];
+            NativeVotes_GetTitle(vote, phrase, sizeof(phrase));
+            Format(title, sizeof(title), "%T", phrase, param1);
+            return view_as<int>(NativeVotes_RedrawVoteTitle(title));
+        }
+        case MenuAction_DisplayItem:
+        {
+            char info[8], phrase[64], display[64];
+            NativeVotes_GetItem(vote, param2, info, sizeof(info), phrase, sizeof(phrase));
+            Format(display, sizeof(display), "%T", phrase, param1);
+            return view_as<int>(NativeVotes_RedrawVoteItem(display));
         }
     }
     return Plugin_Continue;

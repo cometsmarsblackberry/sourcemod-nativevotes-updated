@@ -116,7 +116,6 @@ int g_Extends;
 int g_TotalRounds;
 bool g_HasVoteStarted;
 bool g_WaitingForVote;
-bool g_TimeVoteDeferred;
 bool g_MapVoteCompleted;
 bool g_ChangeMapAtRoundEnd;
 bool g_ChangeMapInProgress;
@@ -403,7 +402,6 @@ public void OnMapEnd()
 
 	g_HasVoteStarted = false;
 	g_WaitingForVote = false;
-	g_TimeVoteDeferred = false;
 	g_ChangeMapAtRoundEnd = false;
 	g_ChangeMapInProgress = false;
 	g_MapEndVoteTriggered = false;
@@ -451,17 +449,6 @@ public void OnClientDisconnect(int client)
 	
 	g_NominateOwners.Erase(index);
 	g_NominateList.Erase(index);
-}
-
-public void OnClientPutInServer(int client)
-{
-	// The scheduled time vote is intentionally skipped while only bots are
-	// present. Start it as soon as the first human arrives instead of losing
-	// the one-shot timer for the rest of the map.
-	if (!IsFakeClient(client) && g_TimeVoteDeferred)
-	{
-		SetupTimeleftTimer();
-	}
 }
 
 public Action Command_SetNextMap(int client, int args)
@@ -517,8 +504,6 @@ void SetupTimeleftTimer()
 		g_VoteTimer = null;
 	}
 
-	g_TimeVoteDeferred = false;
-
 	// In this TF2 mode the game-over event starts the vote at the real map end.
 	if (!g_ConVars[mapvote_endvote].BoolValue || IsMapEndVoteModeEnabled())
 	{
@@ -529,26 +514,15 @@ void SetupTimeleftTimer()
 	if (GetMapTimeLeft(time) && time > 0)
 	{
 		int startTime = RoundToFloor(g_ConVars[mapvote_start].FloatValue * 60.0);
-		int timeUntilVote = time - startTime;
-		if (timeUntilVote <= 0)
+		if (time - startTime < 0 && g_ConVars[mapvote_endvote].BoolValue && !g_MapVoteCompleted && !g_HasVoteStarted)
 		{
-			if (!g_MapVoteCompleted && !g_HasVoteStarted && !g_WaitingForVote)
-			{
-				if (HasHumanPlayers())
-				{
-					InitiateVote(MapChange_MapEnd, null);
-				}
-				else
-				{
-					g_TimeVoteDeferred = true;
-				}
-			}
+			InitiateVote(MapChange_MapEnd, null);
 		}
 		else
 		{
 			//g_VoteTimer = CreateTimer(float(time - startTime), Timer_StartMapVote, _, TIMER_FLAG_NO_MAPCHANGE);
 			DataPack data;
-			g_VoteTimer = CreateDataTimer(float(timeUntilVote), Timer_StartMapVote, data, TIMER_FLAG_NO_MAPCHANGE);
+			g_VoteTimer = CreateDataTimer(float(time - startTime), Timer_StartMapVote, data, TIMER_FLAG_NO_MAPCHANGE);
 			data.WriteCell(MapChange_MapEnd);
 			data.WriteCell(INVALID_HANDLE);
 			data.Reset();
@@ -738,10 +712,6 @@ public Action Timer_StartMapVote(Handle timer, DataPack data)
 	// Prevent map vote if the server is empty
 	if (!HasHumanPlayers())
 	{
-		if (!isRetryTimer)
-		{
-			g_TimeVoteDeferred = true;
-		}
 		return Plugin_Stop;
 	}
 

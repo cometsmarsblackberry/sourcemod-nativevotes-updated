@@ -394,12 +394,25 @@ static ConVar g_Cvar_ChangeDifficulty_Enabled;
 static ConVar g_Cvar_ChangeGamemode_Enabled;
 
 /**
- * TODO(UPDATE): For now we only support one vote from NativeVotes at a time.
- * 
- * Ideally we peek and poke at the game's `s_nVoteIdx` and increment it accordingly, but we also
- * have to store an internal list of active votes.
+ * TF2 uses the vote index to associate VoteStart, vote_options, vote_changed,
+ * vote_cast, VotePass, and VoteFailed with the same client-side HUD panel.
+ *
+ * The game's private s_nVoteIdx cannot be accessed from SourcePawn. Allocate
+ * NativeVotes indices downwards from the top of the signed integer range so
+ * they do not collide with the game's upwards-counting indices in practice.
  */
-static int s_nNativeVoteIdx = 0;
+static int s_nNativeVoteIdx = -1;
+static int s_nNextNativeVoteIdx = 0x7FFFFFFF;
+
+static int TF2_GetNextNativeVoteIndex()
+{
+	if (s_nNextNativeVoteIdx <= 1)
+	{
+		s_nNextNativeVoteIdx = 0x7FFFFFFF;
+	}
+
+	return --s_nNextNativeVoteIdx;
+}
 
 bool Game_IsGameSupported(char[] engineName="", int maxlength=0)
 {
@@ -655,10 +668,10 @@ bool Game_DisplayVoteToOne(NativeVote vote, int client)
 	int clients[1];
 	clients[0] = client;
 	
-	return Game_DisplayVote(vote, clients, 1);
+	return Game_DisplayVote(vote, clients, 1, true);
 }
 
-bool Game_DisplayVote(NativeVote vote, int[] clients, int num_clients)
+bool Game_DisplayVote(NativeVote vote, int[] clients, int num_clients, bool redraw=false)
 {
 	if (g_bCancelled)
 	{
@@ -677,7 +690,7 @@ bool Game_DisplayVote(NativeVote vote, int[] clients, int num_clients)
 		}
 		case Engine_CSGO, Engine_TF2:
 		{
-			TF2CSGO_DisplayVote(vote, clients, num_clients);
+			TF2CSGO_DisplayVote(vote, clients, num_clients, redraw);
 		}
 	}
 
@@ -977,9 +990,13 @@ void Game_VoteYes(int client)
 		{
 			FakeClientCommand(client, "Vote Yes");
 		}
-		case Engine_CSGO, Engine_TF2:
+		case Engine_CSGO:
 		{
 			FakeClientCommand(client, "vote option1");
+		}
+		case Engine_TF2:
+		{
+			FakeClientCommand(client, "vote %d option1", s_nNativeVoteIdx);
 		}
 	}
 }
@@ -992,9 +1009,13 @@ void Game_VoteNo(int client)
 		{
 			FakeClientCommand(client, "Vote No");
 		}
-		case Engine_CSGO, Engine_TF2:
+		case Engine_CSGO:
 		{
 			FakeClientCommand(client, "vote option2");
+		}
+		case Engine_TF2:
+		{
+			FakeClientCommand(client, "vote %d option2", s_nNativeVoteIdx);
 		}
 	}
 }
@@ -2108,7 +2129,10 @@ static int TF2_ParseVote(const char[] option)
 		return NATIVEVOTES_VOTE_INVALID;
 	}
 	
-	// int voteidx = GetCmdArgInt(1);
+	if (GetCmdArgInt(1) != s_nNativeVoteIdx)
+	{
+		return NATIVEVOTES_VOTE_INVALID;
+	}
 	
 	char voteOption[16];
 	GetCmdArg(2, voteOption, sizeof(voteOption));
@@ -2172,14 +2196,14 @@ static stock void TF2CSGO_UpdateClientCount(int num_clients)
 	}
 }
 
-static void TF2CSGO_DisplayVote(NativeVote vote, int[] clients, int num_clients)
+static void TF2CSGO_DisplayVote(NativeVote vote, int[] clients, int num_clients, bool redraw)
 {
 	NativeVotesType voteType = Data_GetType(vote);
 	
 	// Added for novote support
 	bool bNoVoteButton = (Data_GetFlags(vote) & MENUFLAG_BUTTON_NOVOTE) == MENUFLAG_BUTTON_NOVOTE;
 	
-	if (bNoVoteButton)
+	if (bNoVoteButton && !redraw)
 	{
 		int max = Game_GetMaxItems();
 		if (Data_GetItemCount(vote) == max)
@@ -2233,9 +2257,15 @@ static void TF2CSGO_DisplayVote(NativeVote vote, int[] clients, int num_clients)
 	}
 	
 	int team = Data_GetTeam(vote);
+
+	if (!redraw && g_EngineVersion == Engine_TF2)
+	{
+		s_nNativeVoteIdx = TF2_GetNextNativeVoteIndex();
+	}
 	
-	// Moved to mimic SourceSDK2013's server/vote_controller.cpp
-	if (CheckVoteController())
+	// A redraw must not reset the shared controller or allocate a new vote index.
+	// Other clients are still displaying and voting on this same vote.
+	if (!redraw && CheckVoteController())
 	{
 		SetEntProp(g_VoteController, Prop_Send, "m_bIsYesNoVote", bYesNo);
 		
@@ -2252,45 +2282,24 @@ static void TF2CSGO_DisplayVote(NativeVote vote, int[] clients, int num_clients)
 			SetEntProp(g_VoteController, Prop_Send, "m_nVoteOptionCount", 0, _, i);
 		}
 
-		// TODO(UPDATE): M-M-M-MULTIVOTE
-		// we need unique vote indices; HUD elements for previous votes aren't cleaned up (?)
-		// the game implements this as `this->m_nVoteIdx = s_nVoteIdx++`
-		s_nNativeVoteIdx = GetEntProp(g_VoteController, Prop_Send, "m_nVoteIdx");
+		if (g_EngineVersion == Engine_TF2)
+		{
+			SetEntProp(g_VoteController, Prop_Send, "m_nVoteIdx", s_nNativeVoteIdx);
+		}
+		else
+		{
+			// Preserve the existing CS:GO behavior. Its VoteStart message is protobuf
+			// and does not carry the TF2 vote index field.
+			s_nNativeVoteIdx = GetEntProp(g_VoteController, Prop_Send, "m_nVoteIdx");
+			SetEntProp(g_VoteController, Prop_Send, "m_nVoteIdx", s_nNativeVoteIdx + 1);
+		}
 		
 	#if defined LOG
 		PrintToServer("Starting vote index: %d (controller: %d)", s_nNativeVoteIdx, GetEntProp(g_VoteController, Prop_Send, "m_nVoteIdx"));
-	#endif		
-		SetEntProp(g_VoteController, Prop_Send, "m_nVoteIdx", s_nNativeVoteIdx + 1); // TODO(UPDATE)
-	}
-	
-	// According to Source SDK 2013, vote_options is only sent for a multiple choice vote.
-	// As of 2015-09-28, vote_options is sent for all votes in TF2 despite Yes/No being
-	// translated in the UI itself.
-	// As of 2016-07-10, we send this only when we're doing Yes/No votes as we handle
-	// multiple choice votes separately later.
-	if (bYesNo)
-	{
-		int itemCount = Data_GetItemCount(vote);
-		
-		Event optionsEvent = CreateEvent("vote_options");
-		
-		for (int i = 0; i < itemCount; i++)
-		{
-			char option[8];
-			Format(option, sizeof(option), "%s%d", TF2CSGO_VOTE_PREFIX, i+1);
-			char display[TRANSLATION_LENGTH];
-			Data_GetItemDisplay(vote, i, display, sizeof(display));
-			
-			optionsEvent.SetString(option, display);
-		}
-		optionsEvent.SetInt("count", itemCount);
-		optionsEvent.SetInt("voteidx", s_nNativeVoteIdx);
-		optionsEvent.Fire();
+	#endif
 	}
 
-	// Moved to mimic SourceSDK2013's server/vote_controller.cpp
-	// For whatever reason, while the other props are set first, this one's set after the vote_options event
-	if (CheckVoteController())
+	if (!redraw && CheckVoteController())
 	{
 		SetEntProp(g_VoteController, Prop_Send, "m_nPotentialVotes", num_clients);
 	}
@@ -2298,7 +2307,7 @@ static void TF2CSGO_DisplayVote(NativeVote vote, int[] clients, int num_clients)
 	int holder = vote.Initiator;
 	// required to allow the initiator to vote on their own issue
 	// https://github.com/ValveSoftware/Source-1-Games/issues/3934
-	if (sv_vote_holder_may_vote_no && holder <= MaxClients && IsClientConnected(holder) && !IsFakeClient(holder))
+	if (sv_vote_holder_may_vote_no && holder > 0 && holder <= MaxClients && IsClientConnected(holder) && !IsFakeClient(holder))
 	{
 		sv_vote_holder_may_vote_no.ReplicateToClient(holder, "1");
 	}
@@ -2317,11 +2326,6 @@ static void TF2CSGO_DisplayVote(NativeVote vote, int[] clients, int num_clients)
 		}
 		
 		g_curDisplayClient = 0;
-
-		if (!bYesNo)
-		{
-			TF2CSGO_SendOptionsToClient(vote, clients[i]);
-		}
 
 		Handle voteStart = StartMessageOne("VoteStart", clients[i], USERMSG_RELIABLE);
 		
@@ -2359,9 +2363,38 @@ static void TF2CSGO_DisplayVote(NativeVote vote, int[] clients, int num_clients)
 				bfStart.WriteString(details);
 			}
 			bfStart.WriteByte(bYesNo);
-			bfStart.WriteByte(Data_GetTarget(vote) - 1);
+			bfStart.WriteByte(Data_GetTarget(vote));
 		}
 		EndMessage();
+
+		// The client filters vote_options by the index installed by VoteStart.
+		// Queue VoteStart first so a fresh unique index does not discard its options.
+		if (!bYesNo)
+		{
+			TF2CSGO_SendOptionsToClient(vote, clients[i]);
+		}
+	}
+
+	// Keep the existing broadcast behavior for Yes/No labels. Multiple-choice
+	// labels are sent per client above because MenuAction_DisplayItem may localize them.
+	if (bYesNo)
+	{
+		int itemCount = Data_GetItemCount(vote);
+		Event optionsEvent = CreateEvent("vote_options");
+
+		for (int i = 0; i < itemCount; i++)
+		{
+			char option[8];
+			Format(option, sizeof(option), "%s%d", TF2CSGO_VOTE_PREFIX, i+1);
+
+			char display[TRANSLATION_LENGTH];
+			Data_GetItemDisplay(vote, i, display, sizeof(display));
+			optionsEvent.SetString(option, display);
+		}
+
+		optionsEvent.SetInt("count", itemCount);
+		optionsEvent.SetInt("voteidx", s_nNativeVoteIdx);
+		optionsEvent.Fire();
 	}
 	g_curDisplayClient = 0;
 }

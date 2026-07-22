@@ -733,23 +733,32 @@ public Handler_NativeVoteCallback(Handle:menu, MenuAction:action, param1, param2
 						{
 							strcopy(g_VoteArg, sizeof(g_VoteArg), "Votekicked");
 						}
-						if (GetClientOfUserId(g_VoteClient[VOTE_USERID]) > 0 && !IsClientInKickQueue(g_VoteClient[VOTE_CLIENTID]))
+
+						// Close the vote HUD before removing the target. Kicking a bot is
+						// synchronous and can otherwise abort this callback before VotePass.
+						NativeVotes_DisplayPass(menu, g_VoteInfo[VOTE_NAME]);
+
+						int target = GetClientOfUserId(g_VoteClient[VOTE_USERID]);
+						if (target > 0 && !IsClientInKickQueue(target))
 						{
 							CPrintToChatAll("%t", "Kicked target", "_s", g_VoteInfo[VOTE_NAME]);
-							LogAction(-1, g_VoteClient[VOTE_CLIENTID], "Vote kick successful, kicked \"%L\" (reason \"%s\")", g_VoteClient[VOTE_CLIENTID], g_VoteArg);
-							if (g_SourceBans)
+							LogAction(-1, target, "Vote kick successful, kicked \"%L\" (reason \"%s\")", target, g_VoteArg);
+							if (IsFakeClient(target))
 							{
-								SBPP_BanPlayer(0, g_VoteClient[VOTE_CLIENTID], g_ConVars[sv_vote_kick_ban_duration].IntValue, g_VoteArg);
+								KickClient(target, "%s", g_VoteArg);
+							}
+							else if (g_SourceBans)
+							{
+								SBPP_BanPlayer(0, target, g_ConVars[sv_vote_kick_ban_duration].IntValue, g_VoteArg);
 							}
 							else if (g_ConVars[sv_vote_kick_ban_duration].IntValue < 0)
 							{
-								KickClient(g_VoteClient[VOTE_CLIENTID], "%s", g_VoteArg);
+								KickClient(target, "%s", g_VoteArg);
 							}
 							else
 							{
-								BanClient(g_VoteClient[VOTE_CLIENTID], g_ConVars[sv_vote_kick_ban_duration].IntValue, BANFLAG_AUTO, g_VoteArg, "Kicked by vote", "sm_votekick");
+								BanClient(target, g_ConVars[sv_vote_kick_ban_duration].IntValue, BANFLAG_AUTO, g_VoteArg, "Kicked by vote", "sm_votekick");
 							}
-							NativeVotes_DisplayPass(menu, g_VoteInfo[VOTE_NAME]);
 						}
 					}
 					case ban:

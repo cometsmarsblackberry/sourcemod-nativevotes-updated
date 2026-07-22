@@ -1284,9 +1284,10 @@ bool StartVote(NativeVote vote, int num_clients, int[] clients, int max_time, in
 	
 	g_Clients = clientCount;
 	
+	// Displaying the vote allocates its TF2 vote index. Publish the initial
+	// counts afterwards so vote_changed uses that same index.
+	DoClientVote(vote, clients, num_clients);
 	Game_UpdateVoteCounts(g_hVotes, clientCount);
-	
-	DoClientVote(vote, clients, num_clients);	
 	
 	StartVoting();
 	
@@ -1584,7 +1585,7 @@ public Action RedrawTimer(Handle timer, DataPack data)
 	
 	ResetPack(data);
 	int client = GetClientOfUserId(data.ReadCell());
-	if (client == 0)
+	if (client == 0 || !IsClientInGame(client))
 	{
 		return Plugin_Stop;
 	}

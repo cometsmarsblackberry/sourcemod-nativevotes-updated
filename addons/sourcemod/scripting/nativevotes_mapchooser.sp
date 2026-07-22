@@ -68,6 +68,7 @@ enum
 	mp_fraglimit,
 	mp_bonusroundtime,
 	mp_chattime,
+	mp_timelimit,
 	mapcyclefile,
 
 	/* Plugin ConVars */
@@ -116,6 +117,7 @@ int g_Extends;
 int g_TotalRounds;
 bool g_HasVoteStarted;
 bool g_WaitingForVote;
+bool g_TimeleftUpdatePending;
 bool g_MapVoteCompleted;
 bool g_ChangeMapAtRoundEnd;
 bool g_ChangeMapInProgress;
@@ -214,6 +216,7 @@ public void OnPluginStart()
 	g_ConVars[mp_fraglimit]      = FindConVar("mp_fraglimit");
 	g_ConVars[mp_bonusroundtime] = FindConVar("mp_bonusroundtime");
 	g_ConVars[mp_chattime]       = FindConVar("mp_chattime");
+	g_ConVars[mp_timelimit]      = FindConVar("mp_timelimit");
 	g_ConVars[mapcyclefile]      = FindConVar("mapcyclefile");
 
 	if (g_IsTF2)
@@ -337,6 +340,7 @@ public void OnLibraryRemoved(const char[] name)
 
 public void OnConfigsExecuted()
 {
+	g_TimeleftUpdatePending = false;
 	g_MapEndVoteTriggered = false;
 	g_MapEndVotePending = false;
 
@@ -402,6 +406,7 @@ public void OnMapEnd()
 
 	g_HasVoteStarted = false;
 	g_WaitingForVote = false;
+	g_TimeleftUpdatePending = false;
 	g_ChangeMapAtRoundEnd = false;
 	g_ChangeMapInProgress = false;
 	g_MapEndVoteTriggered = false;
@@ -482,6 +487,35 @@ public Action Command_SetNextMap(int client, int args)
 
 public void OnMapTimeLeftChanged()
 {
+	if (!g_MapList.Length)
+	{
+		return;
+	}
+
+	// SourceMod resets its TF2 map-time estimate while teamplay_restart_round
+	// is still being processed. Wait until the next frame, when TF2's
+	// authoritative m_flMapResetTime has settled.
+	if (g_IsTF2)
+	{
+		if (!g_TimeleftUpdatePending)
+		{
+			g_TimeleftUpdatePending = true;
+			RequestFrame(Frame_SetupTimeleftTimer);
+		}
+		return;
+	}
+
+	SetupTimeleftTimer();
+}
+
+public void Frame_SetupTimeleftTimer(any data)
+{
+	if (!g_TimeleftUpdatePending)
+	{
+		return;
+	}
+
+	g_TimeleftUpdatePending = false;
 	if (g_MapList.Length)
 	{
 		SetupTimeleftTimer();
@@ -511,23 +545,47 @@ void SetupTimeleftTimer()
 	}
 
 	int time;
-	if (GetMapTimeLeft(time) && time > 0)
+	if (GetMapVoteTimeLeft(time) && time > 0)
 	{
 		int startTime = RoundToFloor(g_ConVars[mapvote_start].FloatValue * 60.0);
-		if (time - startTime < 0 && g_ConVars[mapvote_endvote].BoolValue && !g_MapVoteCompleted && !g_HasVoteStarted)
+		int timeUntilVote = time - startTime;
+		if (timeUntilVote <= 0)
 		{
-			InitiateVote(MapChange_MapEnd, null);
+			if (!g_MapVoteCompleted && !g_HasVoteStarted && !g_WaitingForVote)
+			{
+				InitiateVote(MapChange_MapEnd, null);
+			}
+			return;
 		}
-		else
-		{
-			//g_VoteTimer = CreateTimer(float(time - startTime), Timer_StartMapVote, _, TIMER_FLAG_NO_MAPCHANGE);
-			DataPack data;
-			g_VoteTimer = CreateDataTimer(float(time - startTime), Timer_StartMapVote, data, TIMER_FLAG_NO_MAPCHANGE);
-			data.WriteCell(MapChange_MapEnd);
-			data.WriteCell(INVALID_HANDLE);
-			data.Reset();
-		}		
+
+		DataPack data;
+		g_VoteTimer = CreateDataTimer(float(timeUntilVote), Timer_StartMapVote, data, TIMER_FLAG_NO_MAPCHANGE);
+		data.WriteCell(MapChange_MapEnd);
+		data.WriteCell(INVALID_HANDLE);
+		data.Reset();
 	}
+}
+
+bool GetMapVoteTimeLeft(int &time)
+{
+	if (!g_IsTF2 || g_ConVars[mp_timelimit] == null)
+	{
+		return GetMapTimeLeft(time);
+	}
+
+	float timeLimit = g_ConVars[mp_timelimit].FloatValue;
+	if (timeLimit <= 0.0)
+	{
+		time = -1;
+		return true;
+	}
+
+	// TF2 uses m_flMapResetTime for the real map deadline. SourceMod keeps a
+	// separate start time which is reset by teamplay_restart_round, even when
+	// votescramble restores TF2's original deadline for a non-full reset.
+	float mapEndTime = GameRules_GetPropFloat("m_flMapResetTime") + timeLimit * 60.0;
+	time = RoundToFloor(mapEndTime - GetGameTime());
+	return true;
 }
 
 bool IsMapEndVoteModeEnabled()

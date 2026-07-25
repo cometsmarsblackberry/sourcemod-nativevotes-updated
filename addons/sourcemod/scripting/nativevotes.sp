@@ -33,6 +33,11 @@
  * Version: $Id$
  */
 
+// Map-cycle string tables can contain hundreds of paths. Keep enough VM
+// dynamic memory for the largest individual read or serialization buffer.
+// The pragma is measured in 4-byte cells, so this reserves 128 KiB.
+#pragma dynamic 32768
+
 #include <sourcemod>
 #include <sdktools>
 
@@ -388,7 +393,76 @@ public Action Timer_RetryCallVote(Handle timer, any data)
 	return Plugin_Stop;
 }
 
-public void ProcessMapList()
+int ReadMapListFromStringTable(int stringTableIndex, int stringIndex,
+	int dataLength, StringMap mapList)
+{
+	char[] mapData = new char[dataLength];
+	GetStringTableData(stringTableIndex, stringIndex, mapData, dataLength);
+
+	// Avoid creating an extra blank entry from the trailing newline.
+	TrimString(mapData);
+	if (mapData[0] == '\0')
+	{
+		return 0;
+	}
+
+	return ExplodeStringToStringMap(mapData, "\n", mapList,
+		PLATFORM_MAX_PATH, ImplodePart_Key);
+}
+
+bool WriteMapListToStringTable(int stringTableIndex, int stringIndex,
+	StringMap mapList, int &writeLength, int &textLength, int &textHash)
+{
+	writeLength = 0;
+	textLength = 0;
+	textHash = 0;
+
+	// GetStringMapImplodeSize includes the nul terminator. Reserve one more
+	// character for the trailing newline expected by ServerMapCycle.
+	int bufferLength = GetStringMapImplodeSize(mapList, 1, ImplodePart_Key) + 1;
+
+	DebugLog(1, "map list serialization allocation: maps=%d buffer_bytes=%d",
+		mapList.Size, bufferLength);
+
+	char[] mapData = new char[bufferLength];
+	textLength = ImplodeStringMapToString(mapList, "\n", mapData,
+		bufferLength, ImplodePart_Key);
+
+	int expectedTextLength = bufferLength - 2;
+	if (textLength <= 0 || textLength != expectedTextLength)
+	{
+		LogError("Map list serialization was incomplete: expected_text_bytes=%d actual_text_bytes=%d",
+			expectedTextLength, textLength);
+		return false;
+	}
+
+	if (mapData[textLength - 1] != '\n')
+	{
+		if (textLength + 1 >= bufferLength)
+		{
+			LogError("Map list serialization exceeded its buffer: buffer_bytes=%d text_bytes=%d",
+				bufferLength, textLength);
+			return false;
+		}
+
+		mapData[textLength++] = '\n';
+		mapData[textLength] = '\0';
+	}
+
+	// String-table user data includes the terminating nul byte.
+	writeLength = textLength + 1;
+	if (IsDebugLoggingEnabled(1))
+	{
+		textHash = DebugHashString(mapData);
+	}
+
+	DebugLog(1, "map list serialized: buffer_bytes=%d write_bytes=%d text_bytes=%d",
+		bufferLength, writeLength, textLength);
+	SetStringTableData(stringTableIndex, stringIndex, mapData, writeLength);
+	return true;
+}
+
+public bool ProcessMapList()
 {
 	char stringTable[64] = "ServerMapCycle";
 	if (FindSendPropInfo("CTFGameRulesProxy", "m_bPlayingMannVsMachine") > 0 && GameRules_GetProp("m_bPlayingMannVsMachine"))
@@ -400,7 +474,7 @@ public void ProcessMapList()
 	if (stringTableIndex == INVALID_STRING_TABLE)
 	{
 		DebugLog(1, "map list processing stopped: string table %s was not found", stringTable);
-		return;
+		return false;
 	}
 
 	int stringIndex = FindStringIndex(stringTableIndex, stringTable);
@@ -408,7 +482,7 @@ public void ProcessMapList()
 	{
 		DebugLog(1, "map list processing stopped: entry %s was not found in string table index %d",
 			stringTable, stringTableIndex);
-		return;
+		return false;
 	}
 
 	// Maplist resets every map
@@ -416,18 +490,12 @@ public void ProcessMapList()
 	if (length <= 0)
 	{
 		DebugLog(1, "map list processing stopped: table=%s bytes=%d", stringTable, length);
-		return;
+		return false;
 	}
 
-	char[] mapData = new char[length];
-	GetStringTableData(stringTableIndex, stringIndex, mapData, length);
-
-	// We'll get an extra blank entry if we don't do this
-	TrimString(mapData);
-	
 	StringMap overrideList = new StringMap();
-	int parsedMaps = ExplodeStringToStringMap(mapData, "\n", overrideList,
-		PLATFORM_MAX_PATH, ImplodePart_Key);
+	int parsedMaps = ReadMapListFromStringTable(stringTableIndex, stringIndex,
+		length, overrideList);
 
 	DebugLog(1, "map list read: table=%s table_index=%d entry_index=%d bytes=%d parsed_maps=%d override_handlers=%d",
 		stringTable, stringTableIndex, stringIndex, length, parsedMaps,
@@ -443,29 +511,37 @@ public void ProcessMapList()
 		forwardError, mapResult, overrideList.Size);
 	DebugLogMapList(1, "after NativeVotes_OverrideMaps", overrideList);
 
+	if (forwardError != 0)
+	{
+		LogError("Map override forward failed: error=%d", forwardError);
+		delete overrideList;
+		return false;
+	}
+
 	if (mapResult != Plugin_Changed || overrideList.Size <= 0)
 	{
 		DebugLog(1, "map list write skipped: action=%d maps=%d", mapResult, overrideList.Size);
 		delete overrideList;
-		return;
+		return false;
 	}
 
-	g_MapOverrides = overrideList;
-	
-	int maxLength = GetStringMapImplodeSize(overrideList, 1, ImplodePart_Key);
-		
-	char[] newMapData = new char[maxLength];
-	int newLength = ImplodeStringMapToString(overrideList, "\n", newMapData, maxLength, ImplodePart_Key);
-	if (newLength < maxLength && newMapData[newLength] != '\n')
+	int writeLength;
+	int textLength;
+	int textHash;
+	if (!WriteMapListToStringTable(stringTableIndex, stringIndex, overrideList,
+		writeLength, textLength, textHash))
 	{
-		// do this to avoid a StrCat
-		newLength += strcopy(newMapData[newLength], maxLength, "\n") + 1;
+		delete overrideList;
+		return false;
 	}
-	
-	DebugLog(1, "map list serialized: buffer_bytes=%d write_bytes=%d text_bytes=%d",
-		maxLength, newLength, strlen(newMapData));
-	SetStringTableData(stringTableIndex, stringIndex, newMapData, newLength);
-	DebugVerifyMapStringTableWrite(stringTableIndex, stringIndex, newMapData, newLength);
+
+	// The serialization buffer has been released now, so verification does not
+	// need to keep two complete copies of a large map list on the VM heap.
+	DebugVerifyMapStringTableWrite(stringTableIndex, stringIndex,
+		writeLength, textLength, textHash);
+
+	g_MapOverrides = overrideList;
+	return true;
 }
 
 public void OnClientDisconnect_Post(int client)
@@ -523,13 +599,21 @@ public Action Command_CallVote(int client, const char[] command, int argc)
 
 			if (!g_OverridesSet	&& Game_AreVoteCommandsSupported())
 			{
+				bool mapListChanged = ProcessMapList();
+				// Set this only after processing returns successfully. An
+				// unexpected exception must not leave subsequent requests
+				// using an unmodified string table as if it were overridden.
 				g_OverridesSet = true;
-				ProcessMapList();
 
-				DebugLog(1, "callvote setup delayed by 0.1 seconds for string table networking");
-				// Force it to reissue the callvote command so that the map list gets networked
-				CreateTimer(0.1, Timer_RetryCallVote, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
-				return Plugin_Handled;
+				if (mapListChanged)
+				{
+					DebugLog(1, "callvote setup delayed by 0.1 seconds for string table networking");
+					// Force it to reissue the callvote command so that the map list gets networked
+					CreateTimer(0.1, Timer_RetryCallVote, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
+					return Plugin_Handled;
+				}
+
+				DebugLog(1, "callvote setup continuing immediately because the map list was not changed");
 			}
 
 			DebugLogMapStringTable(1, "while building callvote setup");

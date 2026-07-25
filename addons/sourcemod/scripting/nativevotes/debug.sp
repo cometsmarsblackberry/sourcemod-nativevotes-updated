@@ -114,8 +114,19 @@ void DebugLogMapStringTable(int level, const char[] stage)
 	delete mapList;
 }
 
+int DebugHashString(const char[] value)
+{
+	int hash = 5381;
+	for (int i = 0; value[i] != '\0'; i++)
+	{
+		hash = ((hash << 5) + hash) ^ value[i];
+	}
+
+	return hash;
+}
+
 void DebugVerifyMapStringTableWrite(int stringTableIndex, int stringIndex,
-	const char[] expectedData, int expectedLength)
+	int expectedLength, int expectedTextLength, int expectedTextHash)
 {
 	if (!IsDebugLoggingEnabled(1))
 	{
@@ -133,9 +144,15 @@ void DebugVerifyMapStringTableWrite(int stringTableIndex, int stringIndex,
 	char[] storedData = new char[storedLength];
 	GetStringTableData(stringTableIndex, stringIndex, storedData, storedLength);
 
-	DebugLog(1, "map list write verification: expected_bytes=%d stored_bytes=%d expected_text_bytes=%d stored_text_bytes=%d text_match=%d",
-		expectedLength, storedLength, strlen(expectedData), strlen(storedData),
-		StrEqual(expectedData, storedData));
+	int storedTextLength = strlen(storedData);
+	int storedTextHash = DebugHashString(storedData);
+	bool lengthMatch = expectedLength == storedLength;
+	bool textMatch = expectedTextLength == storedTextLength
+		&& expectedTextHash == storedTextHash;
+
+	DebugLog(1, "map list write verification: expected_bytes=%d stored_bytes=%d expected_text_bytes=%d stored_text_bytes=%d expected_hash=%d stored_hash=%d length_match=%d text_match=%d",
+		expectedLength, storedLength, expectedTextLength, storedTextLength,
+		expectedTextHash, storedTextHash, lengthMatch, textMatch);
 }
 
 void DebugLogVoteSetup(int client, ArrayList voteTypes)

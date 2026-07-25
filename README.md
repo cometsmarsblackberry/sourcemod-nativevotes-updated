@@ -44,6 +44,11 @@ This fork aims to expand upon [<img src="https://avatars.githubusercontent.com/u
 |`1`|Map-list parsing and rewriting, string-table write verification, callvote retry state, and the final vote-setup response.|
 |`2`|Level 1 plus verbose vote forwarding, visibility, and lifecycle messages.|
 
+Large map cycles are read and serialized in separate memory scopes, and writes
+are verified by byte length and content hash at debug level 1. NativeVotes also
+reserves a 128 KiB dynamic-memory pool so unusually large TF2 map lists do not
+exhaust the plugin heap.
+
 ## <img src="https://cdn.fastly.steamstatic.com/steamcommunity/public/images/apps/440/033bdd91842b6aca0633ee1e5f3e6b82f2e8962f.ico" width="24" height="24" style="vertical-align: text-bottom;"> Team Fortress 2
 - Fixes:
   - ✔️/❌ vote counts.

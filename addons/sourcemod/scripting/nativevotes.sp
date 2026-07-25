@@ -906,9 +906,19 @@ public Action Command_Vote(int client, const char[] command, int argc)
 	int item = Game_ParseVote(option);
 	
 	// Make sure we don't go out of bounds on the vote
-	if (item == NATIVEVOTES_VOTE_INVALID || item > g_Items)
+	if (item == NATIVEVOTES_VOTE_INVALID || item < 0 || item >= g_Items)
 	{
 		return Plugin_Handled;
+	}
+
+	if (IsDebugLoggingEnabled(2))
+	{
+		char itemInfo[INFO_LENGTH];
+		char itemDisplay[TRANSLATION_LENGTH];
+		Data_GetItemInfo(g_hCurVote, item, itemInfo, sizeof(itemInfo));
+		Data_GetItemDisplay(g_hCurVote, item, itemDisplay, sizeof(itemDisplay));
+		DebugLog(2, "vote option selected: client=%N option=%d item=%d info=%s display=%s",
+			client, item + 1, item, itemInfo, itemDisplay);
 	}
 
 	bool cancel;

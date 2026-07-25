@@ -2304,6 +2304,31 @@ static void TF2CSGO_DisplayVote(NativeVote vote, int[] clients, int num_clients,
 		SetEntProp(g_VoteController, Prop_Send, "m_nPotentialVotes", num_clients);
 	}
 
+	// TF2 caches vote_options for the VoteStart message that follows it.
+	// Sending these labels after VoteStart makes the new panel reuse the
+	// preceding vote's choices.
+	if (bYesNo)
+	{
+		int itemCount = Data_GetItemCount(vote);
+		Event optionsEvent = CreateEvent("vote_options");
+
+		for (int i = 0; i < itemCount; i++)
+		{
+			char option[8];
+			Format(option, sizeof(option), "%s%d", TF2CSGO_VOTE_PREFIX, i+1);
+
+			char display[TRANSLATION_LENGTH];
+			Data_GetItemDisplay(vote, i, display, sizeof(display));
+			optionsEvent.SetString(option, display);
+			DebugLog(2, "vote option queued: voteidx=%d option=%d item=%d display=%s",
+				s_nNativeVoteIdx, i + 1, i, display);
+		}
+
+		optionsEvent.SetInt("count", itemCount);
+		optionsEvent.SetInt("voteidx", s_nNativeVoteIdx);
+		optionsEvent.Fire();
+	}
+
 	int holder = vote.Initiator;
 	// required to allow the initiator to vote on their own issue
 	// https://github.com/ValveSoftware/Source-1-Games/issues/3934
@@ -2324,8 +2349,15 @@ static void TF2CSGO_DisplayVote(NativeVote vote, int[] clients, int num_clients,
 			g_curDisplayClient = clients[i];
 			changeTitle = DoAction(vote, MenuAction_Display, clients[i], 0);
 		}
-		
+
 		g_curDisplayClient = 0;
+
+		// Multiple-choice labels may be localized per client. They still must
+		// arrive before VoteStart so this panel cannot reuse stale choices.
+		if (!bYesNo)
+		{
+			TF2CSGO_SendOptionsToClient(vote, clients[i]);
+		}
 
 		Handle voteStart = StartMessageOne("VoteStart", clients[i], USERMSG_RELIABLE);
 		
@@ -2366,35 +2398,8 @@ static void TF2CSGO_DisplayVote(NativeVote vote, int[] clients, int num_clients,
 			bfStart.WriteByte(Data_GetTarget(vote));
 		}
 		EndMessage();
-
-		// The client filters vote_options by the index installed by VoteStart.
-		// Queue VoteStart first so a fresh unique index does not discard its options.
-		if (!bYesNo)
-		{
-			TF2CSGO_SendOptionsToClient(vote, clients[i]);
-		}
-	}
-
-	// Keep the existing broadcast behavior for Yes/No labels. Multiple-choice
-	// labels are sent per client above because MenuAction_DisplayItem may localize them.
-	if (bYesNo)
-	{
-		int itemCount = Data_GetItemCount(vote);
-		Event optionsEvent = CreateEvent("vote_options");
-
-		for (int i = 0; i < itemCount; i++)
-		{
-			char option[8];
-			Format(option, sizeof(option), "%s%d", TF2CSGO_VOTE_PREFIX, i+1);
-
-			char display[TRANSLATION_LENGTH];
-			Data_GetItemDisplay(vote, i, display, sizeof(display));
-			optionsEvent.SetString(option, display);
-		}
-
-		optionsEvent.SetInt("count", itemCount);
-		optionsEvent.SetInt("voteidx", s_nNativeVoteIdx);
-		optionsEvent.Fire();
+		DebugLog(2, "vote start queued: client=%N voteidx=%d yes_no=%d",
+			clients[i], s_nNativeVoteIdx, bYesNo);
 	}
 	g_curDisplayClient = 0;
 }
@@ -2447,6 +2452,8 @@ static void TF2CSGO_SendOptionsToClient(NativeVote vote, int client)
 			Data_GetItemDisplay(vote, i, display, sizeof(display));
 		}
 		optionsEvent.SetString(option, display);
+		DebugLog(2, "vote option queued: client=%N voteidx=%d option=%d item=%d display=%s",
+			client, s_nNativeVoteIdx, i + 1, i, display);
 	}
 	optionsEvent.SetInt("count", itemCount);
 	optionsEvent.SetInt("voteidx", s_nNativeVoteIdx);

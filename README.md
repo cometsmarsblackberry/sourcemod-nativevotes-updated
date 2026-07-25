@@ -52,6 +52,7 @@ exhaust the plugin heap.
 ## <img src="https://cdn.fastly.steamstatic.com/steamcommunity/public/images/apps/440/033bdd91842b6aca0633ee1e5f3e6b82f2e8962f.ico" width="24" height="24" style="vertical-align: text-bottom;"> Team Fortress 2
 - Fixes:
   - ✔️/❌ vote counts.
+  - Multiple-choice labels are delivered before the vote starts so F1–F5 always match the corresponding server-side items.
   - <s>Proper sounds get played upon selecting an item in a **multi-choice** (≤5 options) vote.</s>
     - Temporarily reverted. See: https://github.com/Heapons/sourcemod-nativevotes-updated/issues/2#issuecomment-3825973400.
   - <img src="https://shared.fastly.steamstatic.com/community_assets/images/apps/3545060/08607ace82bfb52cf8993efe88c2ef00fa25c96f.ico" width="16" height="16" style="vertical-align: text-bottom;"> **Change VIP** vote issue now shows up again.

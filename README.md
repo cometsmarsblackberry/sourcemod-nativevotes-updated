@@ -34,6 +34,16 @@ This fork aims to expand upon [<img src="https://avatars.githubusercontent.com/u
 > [!NOTE]
 > TF2 notification cards share the game's normal notification area and are hidden when a player uses `cl_hud_minmode 1`.
 
+### Diagnostics
+
+`nativevotes_debug` controls runtime diagnostic logging:
+
+|Value|Logging|
+|-|-|
+|`0`|Disabled (default).|
+|`1`|Map-list parsing and rewriting, string-table write verification, callvote retry state, and the final vote-setup response.|
+|`2`|Level 1 plus verbose vote forwarding, visibility, and lifecycle messages.|
+
 ## <img src="https://cdn.fastly.steamstatic.com/steamcommunity/public/images/apps/440/033bdd91842b6aca0633ee1e5f3e6b82f2e8962f.ico" width="24" height="24" style="vertical-align: text-bottom;"> Team Fortress 2
 - Fixes:
   - ✔️/❌ vote counts.

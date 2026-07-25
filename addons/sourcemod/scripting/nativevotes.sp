@@ -73,8 +73,6 @@ int g_AppID = 0;
 #define PROGRESS_CHOICE_LENGTH				64
 #define PROGRESS_CHOICE_MAX_BYTES			14
 
-//#define LOG
-
 //----------------------------------------------------------------------------
 // Global Variables
 int g_NextVote = 0;
@@ -93,6 +91,7 @@ enum
 	progress_hintcaption_style,
 	progress_tf2_notify,
 	progress_tf2_notify_icon,
+	debug_level,
 	vote_delay,
 
 	MAX_CONVARS
@@ -170,6 +169,7 @@ enum struct CallVoteListData
 
 CallVoteForwards g_CallVotes[NativeVotesOverride_Count];
 
+#include "nativevotes/debug.sp"
 #include "nativevotes/game.sp"
 
 public Plugin myinfo = 
@@ -292,6 +292,7 @@ public void OnPluginStart()
 	g_ConVars[progress_client_console] = CreateConVar("nativevotes_progress_client_console", "0", "Show current vote progress as console messages to clients", _, true, 0.0, true, 1.0);
 	g_ConVars[progress_hudtext]         = CreateConVar("nativevotes_progress_hudtext", "0", "Show a compact synchronized HUD panel with vote totals and option bars (when supported)", _, true, 0.0, true, 1.0);
 	g_ConVars[progress_hudtext].AddChangeHook(OnProgressHudTextChange);
+	g_ConVars[debug_level]              = CreateConVar("nativevotes_debug", "0", "Diagnostic logging: 0 = off, 1 = map list and callvote setup, 2 = verbose", _, true, 0.0, true, 2.0);
 	g_ConVars[vote_delay] 		 	   = CreateConVar("nativevotes_vote_delay", "0", "Sets the recommended time in between public votes", _, true, 0.0);
 	g_ConVars[vote_delay].AddChangeHook(OnVoteDelayChange);
 
@@ -376,9 +377,13 @@ public Action Timer_RetryCallVote(Handle timer, any data)
 	
 	if (client == 0)
 	{
+		DebugLog(1, "callvote retry cancelled: userid=%d is no longer connected", data);
 		return Plugin_Stop;
 	}
 	
+	DebugLog(1, "callvote retry firing: client=%N userid=%d overrides_set=%d",
+		client, data, g_OverridesSet);
+	DebugLogMapStringTable(1, "before automatic callvote retry");
 	FakeClientCommand(client, "callvote");
 	return Plugin_Stop;
 }
@@ -392,10 +397,28 @@ public void ProcessMapList()
 	}
 
 	int stringTableIndex = FindStringTable(stringTable);
+	if (stringTableIndex == INVALID_STRING_TABLE)
+	{
+		DebugLog(1, "map list processing stopped: string table %s was not found", stringTable);
+		return;
+	}
+
 	int stringIndex = FindStringIndex(stringTableIndex, stringTable);
+	if (stringIndex == INVALID_STRING_INDEX)
+	{
+		DebugLog(1, "map list processing stopped: entry %s was not found in string table index %d",
+			stringTable, stringTableIndex);
+		return;
+	}
 
 	// Maplist resets every map
 	int length = GetStringTableDataLength(stringTableIndex, stringIndex);
+	if (length <= 0)
+	{
+		DebugLog(1, "map list processing stopped: table=%s bytes=%d", stringTable, length);
+		return;
+	}
+
 	char[] mapData = new char[length];
 	GetStringTableData(stringTableIndex, stringIndex, mapData, length);
 
@@ -403,23 +426,30 @@ public void ProcessMapList()
 	TrimString(mapData);
 	
 	StringMap overrideList = new StringMap();
-	ExplodeStringToStringMap(mapData, "\n", overrideList, PLATFORM_MAX_PATH, ImplodePart_Key);
+	int parsedMaps = ExplodeStringToStringMap(mapData, "\n", overrideList,
+		PLATFORM_MAX_PATH, ImplodePart_Key);
+
+	DebugLog(1, "map list read: table=%s table_index=%d entry_index=%d bytes=%d parsed_maps=%d override_handlers=%d",
+		stringTable, stringTableIndex, stringIndex, length, parsedMaps,
+		GetForwardFunctionCount(g_OverrideMaps));
+	DebugLogMapList(1, "before NativeVotes_OverrideMaps", overrideList);
 
 	Action mapResult = Plugin_Continue;
 	Call_StartForward(g_OverrideMaps);
 	Call_PushCell(overrideList);
-	Call_Finish(mapResult);
+	int forwardError = Call_Finish(mapResult);
+
+	DebugLog(1, "map override forward finished: error=%d action=%d maps=%d",
+		forwardError, mapResult, overrideList.Size);
+	DebugLogMapList(1, "after NativeVotes_OverrideMaps", overrideList);
 
 	if (mapResult != Plugin_Changed || overrideList.Size <= 0)
 	{
+		DebugLog(1, "map list write skipped: action=%d maps=%d", mapResult, overrideList.Size);
 		delete overrideList;
 		return;
 	}
 
-#if defined LOG
-	LogMessage("Overriding map list with %d maps", overrideList.Size);
-#endif 
-		
 	g_MapOverrides = overrideList;
 	
 	int maxLength = GetStringMapImplodeSize(overrideList, 1, ImplodePart_Key);
@@ -432,7 +462,10 @@ public void ProcessMapList()
 		newLength += strcopy(newMapData[newLength], maxLength, "\n") + 1;
 	}
 	
+	DebugLog(1, "map list serialized: buffer_bytes=%d write_bytes=%d text_bytes=%d",
+		maxLength, newLength, strlen(newMapData));
 	SetStringTableData(stringTableIndex, stringIndex, newMapData, newLength);
+	DebugVerifyMapStringTableWrite(stringTableIndex, stringIndex, newMapData, newLength);
 }
 
 public void OnClientDisconnect_Post(int client)
@@ -485,19 +518,21 @@ public Action Command_CallVote(int client, const char[] command, int argc)
 		// No args means that we need to return a CallVoteSetup usermessage
 		case 0:
 		{
+			DebugLog(1, "callvote setup request: client=%N userid=%d overrides_set=%d",
+				client, GetClientUserId(client), g_OverridesSet);
+
 			if (!g_OverridesSet	&& Game_AreVoteCommandsSupported())
 			{
 				g_OverridesSet = true;
 				ProcessMapList();
 
-#if defined LOG
-				LogMessage("Delaying to allow stringtable time to network");
-#endif
+				DebugLog(1, "callvote setup delayed by 0.1 seconds for string table networking");
 				// Force it to reissue the callvote command so that the map list gets networked
 				CreateTimer(0.1, Timer_RetryCallVote, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
 				return Plugin_Handled;
 			}
 
+			DebugLogMapStringTable(1, "while building callvote setup");
 			ArrayList hVoteTypes = new ArrayList(sizeof(CallVoteListData)); // Stores arrays of CallVoteListData
 			
 			Game_AddDefaultVotes(hVoteTypes);
@@ -508,9 +543,7 @@ public Action Command_CallVote(int client, const char[] command, int argc)
 			{
 				if (GetForwardFunctionCount(g_CallVotes[i].CallVote_Forward) > 0)
 				{
-#if defined LOG
-					LogMessage("Found overrides for vote type: %d", i);
-#endif
+					DebugLog(2, "Found overrides for vote type: %d", i);
 					overridesPresent = true;
 					CallVoteListData voteType;
 
@@ -519,16 +552,12 @@ public Action Command_CallVote(int client, const char[] command, int argc)
 					{
 						hVoteTypes.GetArray(pos, voteType, sizeof(CallVoteListData));
 						voteType.CallVoteList_VoteEnabled = true;
-#if defined LOG
-						LogMessage("Forcing vote type to visible: %d", i);
-#endif
+						DebugLog(2, "Forcing vote type to visible: %d", i);
 						hVoteTypes.SetArray(pos, voteType);
 					}
 					else
 					{
-#if defined LOG
-						LogMessage("Creating override for vote type: %d", i);
-#endif
+						DebugLog(2, "Creating override for vote type: %d", i);
 						voteType.CallVoteList_VoteType = view_as<NativeVotesOverride>(i);
 						voteType.CallVoteList_VoteEnabled = true;
 						hVoteTypes.PushArray(voteType);
@@ -539,15 +568,14 @@ public Action Command_CallVote(int client, const char[] command, int argc)
 			if (overridesPresent)
 			{
 				PerformVisChecks(client, hVoteTypes);
-#if defined LOG
-				LogMessage("Overriding VoteSetup message");
-#endif
+				DebugLogVoteSetup(client, hVoteTypes);
 				Game_DisplayVoteSetup(client, hVoteTypes);
 				delete hVoteTypes;
 				return Plugin_Handled;
 			}
 			else
 			{
+				DebugLog(1, "callvote setup passed to the game: no NativeVotes handlers are registered");
 				delete hVoteTypes;
 				return Plugin_Continue;
 			}
@@ -558,9 +586,7 @@ public Action Command_CallVote(int client, const char[] command, int argc)
 			char voteCommand[VOTE_STRING_SIZE];
 			GetCmdArg(1, voteCommand, VOTE_STRING_SIZE);
 
-#if defined LOG
-			LogMessage("User is attempting to call %s", voteCommand);
-#endif
+			DebugLog(2, "User is attempting to call %s", voteCommand);
 			
 			NativeVotesOverride overrideType = Game_VoteStringToVoteOverride(voteCommand);
 			
@@ -583,16 +609,12 @@ public Action Command_CallVote(int client, const char[] command, int argc)
 					return Plugin_Handled;
 				}
 				
-#if defined LOG
-				LogMessage("We don't have a handler for %s, passing back to server", voteCommand);
-#endif
+				DebugLog(2, "We don't have a handler for %s, passing back to server", voteCommand);
 				return Plugin_Continue;
 			}
 			
 			// Vis checks are done here just in case something went wrong and the vote option was shown to a person it shouldn't be.
-#if defined LOG
-			LogMessage("Calling visForward for %s", voteCommand);
-#endif
+			DebugLog(2, "Calling visForward for %s", voteCommand);
 			Call_StartForward(g_CallVotes[overrideType].CallVote_Vis);
 			Call_PushCell(client);
 			Call_PushCell(overrideType);
@@ -646,9 +668,7 @@ public Action Command_CallVote(int client, const char[] command, int argc)
 				}
 			}
 
-#if defined LOG
-			LogMessage("Calling callVoteForward for %s", voteCommand);
-#endif
+			DebugLog(2, "Calling callVoteForward for %s", voteCommand);
 			
 			Call_StartForward(g_CallVotes[overrideType].CallVote_Forward);
 			Call_PushCell(client);
@@ -783,11 +803,12 @@ public void OnMapEnd()
 
 public Action Command_Vote(int client, const char[] command, int argc)
 {
-#if defined LOG
-	char voteString[128];
-	GetCmdArgString(voteString, sizeof(voteString));
-	LogMessage("Client %N ran a vote command: %s", client, voteString);
-#endif
+	if (IsDebugLoggingEnabled(2))
+	{
+		char voteString[128];
+		GetCmdArgString(voteString, sizeof(voteString));
+		DebugLog(2, "Client %N ran a vote command: %s", client, voteString);
+	}
 	
 	// If we're not running a vote, return the vote control back to the server
 	if (!Internal_IsVoteInProgress() || g_ClientVotes[client] != VOTE_PENDING)
@@ -963,9 +984,7 @@ Action DoAction(NativeVote vote, MenuAction action, int param1, int param2, Acti
 	Action res = def_res;
 
 	Handle handler = CloneHandle(Data_GetHandler(vote));
-#if defined LOG
-	LogMessage("Calling Menu forward for vote: %d, handler: %d, action: %d, param1: %d, param2: %d", vote, handler, action, param1, param2);
-#endif
+	DebugLog(2, "Calling Menu forward for vote: %d, handler: %d, action: %d, param1: %d, param2: %d", vote, handler, action, param1, param2);
 	Call_StartForward(handler);
 	Call_PushCell(vote);
 	Call_PushCell(action);
@@ -1034,9 +1053,7 @@ void OnVoteResults(NativeVote vote, const int[][] votes, int num_votes, int item
 			client_items[i] = client_list[i][VOTEINFO_CLIENT_ITEM];
 		}
 
-#if defined LOG
-		LogMessage("Calling results forward for vote: %d, num_votes: %d, num_clients: %d, item_count: %d", vote, num_votes, num_clients, item_count);
-#endif
+		DebugLog(2, "Calling results forward for vote: %d, num_votes: %d, num_clients: %d, item_count: %d", vote, num_votes, num_clients, item_count);
 		
 		Call_StartForward(resultsHandler);
 		Call_PushCell(vote);
@@ -1658,9 +1675,7 @@ void EndVoting()
 	NativeVote vote = g_hCurVote;
 	Internal_Reset();
 	
-#if defined LOG
-	LogMessage("Voting done");
-#endif
+	DebugLog(2, "Voting done");
 	
 	/* Send vote info */
 	OnVoteResults(vote, votes, num_votes, num_items, client_list, num_clients);
@@ -2051,18 +2066,14 @@ void PerformVisChecks(int client, ArrayList hVoteTypes)
 		
 		Action hide = Plugin_Continue;
 		
-#if defined LOG
-		LogMessage("Checking visibility forward for %d: %d", voteData.CallVoteList_VoteType, g_CallVotes[voteData.CallVoteList_VoteType].CallVote_Vis);
-#endif
+		DebugLog(2, "Checking visibility forward for %d: %d", voteData.CallVoteList_VoteType, g_CallVotes[voteData.CallVoteList_VoteType].CallVote_Vis);
 		Call_StartForward(g_CallVotes[voteData.CallVoteList_VoteType].CallVote_Vis);
 		Call_PushCell(client);
 		Call_PushCell(voteData.CallVoteList_VoteType);
 		Call_Finish(hide);
 		if (hide >= Plugin_Handled)
 		{
-#if defined LOG
-			LogMessage("Hiding vote type %d", voteData.CallVoteList_VoteType);
-#endif
+			DebugLog(2, "Hiding vote type %d", voteData.CallVoteList_VoteType);
 			if (Game_AreDisabledIssuesHidden())
 			{
 				// Since we hide disabled issues, remove it from the arraylist

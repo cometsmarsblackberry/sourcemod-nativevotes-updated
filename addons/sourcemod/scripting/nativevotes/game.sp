@@ -44,6 +44,7 @@
 #define TF2CSGO_COUNT						5
 
 #define INVALID_ISSUE						-1
+#define TF2_INACTIVE_VOTE_PANEL_INDEX		-1
 
 //----------------------------------------------------------------------------
 // Translation strings
@@ -2352,11 +2353,17 @@ static void TF2CSGO_DisplayVote(NativeVote vote, int[] clients, int num_clients,
 
 		g_curDisplayClient = 0;
 
-		// Multiple-choice labels may be localized per client. They still must
-		// arrive before VoteStart so this panel cannot reuse stale choices.
+		// TF2 filters vote_options against each HUD panel's current vote index.
+		// Before VoteStart, free panels use -1; preload those panels, then let
+		// VoteStart assign the real unique index. Using the new index here is
+		// discarded, while sending the options after VoteStart updates the
+		// cache too late for the labels currently being rendered.
 		if (!bYesNo)
 		{
-			TF2CSGO_SendOptionsToClient(vote, clients[i]);
+			int optionVoteIdx = g_EngineVersion == Engine_TF2
+				? TF2_INACTIVE_VOTE_PANEL_INDEX
+				: s_nNativeVoteIdx;
+			TF2CSGO_SendOptionsToClient(vote, clients[i], optionVoteIdx);
 		}
 
 		Handle voteStart = StartMessageOne("VoteStart", clients[i], USERMSG_RELIABLE);
@@ -2404,7 +2411,7 @@ static void TF2CSGO_DisplayVote(NativeVote vote, int[] clients, int num_clients,
 	g_curDisplayClient = 0;
 }
 
-static void TF2CSGO_SendOptionsToClient(NativeVote vote, int client)
+static void TF2CSGO_SendOptionsToClient(NativeVote vote, int client, int optionVoteIdx)
 {
 	Event optionsEvent = CreateEvent("vote_options");
 	
@@ -2422,6 +2429,8 @@ static void TF2CSGO_SendOptionsToClient(NativeVote vote, int client)
 		char display[TRANSLATION_LENGTH];
 		Format(display, sizeof(display), "%T", "No Vote", client);
 		optionsEvent.SetString(option, display);
+		DebugLog(2, "vote option queued: client=%N event_voteidx=%d voteidx=%d option=1 item=0 display=%s",
+			client, optionVoteIdx, s_nNativeVoteIdx, display);
 	}
 	
 	int itemCount = Data_GetItemCount(vote);
@@ -2452,11 +2461,11 @@ static void TF2CSGO_SendOptionsToClient(NativeVote vote, int client)
 			Data_GetItemDisplay(vote, i, display, sizeof(display));
 		}
 		optionsEvent.SetString(option, display);
-		DebugLog(2, "vote option queued: client=%N voteidx=%d option=%d item=%d display=%s",
-			client, s_nNativeVoteIdx, i + 1, i, display);
+		DebugLog(2, "vote option queued: client=%N event_voteidx=%d voteidx=%d option=%d item=%d display=%s",
+			client, optionVoteIdx, s_nNativeVoteIdx, i + 1, i, display);
 	}
 	optionsEvent.SetInt("count", itemCount);
-	optionsEvent.SetInt("voteidx", s_nNativeVoteIdx);
+	optionsEvent.SetInt("voteidx", optionVoteIdx);
 	optionsEvent.FireToClient(client);
 	// FireToClient does not close the handle, so we call Cancel() to do that for us.
 	optionsEvent.Cancel();

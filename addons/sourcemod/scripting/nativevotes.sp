@@ -1195,7 +1195,7 @@ void DrawHintProgress()
 
 	if (showHudText)
 	{
-		SetHudTextParams(0.02, 0.12, 1.15, 255, 225, 180, 255, 0, 0.0, 0.0, 0.15);
+		SetHudTextParams(0.35, 0.12, 1.15, 255, 225, 180, 255, 0, 0.0, 0.0, 0.15);
 	}
 
 	for (int client = 1; client <= MaxClients; client++)

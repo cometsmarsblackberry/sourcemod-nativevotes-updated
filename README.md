@@ -19,6 +19,20 @@ This fork aims to expand upon [<img src="https://avatars.githubusercontent.com/u
 - Update [Nominations](https://github.com/Heapons/sourcemod-nativevotes-updated/blob/master/addons/sourcemod/scripting/nativevotes_nominations.sp) and [Rock The Vote](https://github.com/Heapons/sourcemod-nativevotes-updated/blob/master/addons/sourcemod/scripting/nativevotes_rockthevote.sp) to be on par with the latest [Sourcemod](https://github.com/alliedmodders/sourcemod/tree/master/plugins) version.
 - Vote Progress HUD:
   - <img src="https://developer.valvesoftware.com/w/images/2/2b/Env_instructor_hint_-_icon_info.png" width="16" height="16" style="vertical-align: text-bottom;"> Added `nativevotes_progress_hintcaption` convar to use the style of [game instructor hints](https://developer.valvesoftware.com/wiki/Env_instructor_hint) for supported games.
+  - Added an optional synchronized HUD panel with fixed option rows and ASCII progress bars.
+  - Added optional TF2-native notification cards for vote start, the 10-second warning, and the result.
+  - Added an optional compact style for instructor hints, including fixed option rows, progress bars, and a warm accent color.
+  - These displays use built-in client HUD features and require no downloads. Every new display and style defaults to off.
+
+|Name|Default Value|Description|
+|-|-|-|
+|`nativevotes_progress_hudtext`|`0`|Show a compact synchronized HUD panel when the game supports HUD text.|
+|`nativevotes_progress_hintcaption_style`|`0`|Instructor hint layout: `0` keeps the original leaderboard; `1` uses compact fixed option bars. Requires `nativevotes_progress_hintcaption 1`.|
+|`nativevotes_progress_tf2_notify`|`0`|In TF2, show notification cards when a vote starts, reaches 10 seconds, and finishes.|
+|`nativevotes_progress_tf2_notify_icon`|`default`|Built-in TF2 HUD icon used by vote notification cards. `default` selects an icon for each milestone; set an icon name to override it or an empty string for no icon.|
+
+> [!NOTE]
+> TF2 notification cards share the game's normal notification area and are hidden when a player uses `cl_hud_minmode 1`.
 
 ### Diagnostics
 

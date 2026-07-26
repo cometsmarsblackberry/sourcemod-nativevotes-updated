@@ -10,6 +10,33 @@
 		"en"	"Not enough time to revote"
 	}
 
+	"NativeVotes Progress Started"
+	{
+		"en"	"Vote started"
+	}
+
+	"NativeVotes Progress Remaining"
+	{
+		"#format"	"{1:d},{2:d},{3:d}"
+		"en"		"Vote: {1}/{2} voted - {3}s left"
+	}
+
+	"NativeVotes Progress Passed"
+	{
+		"en"	"Vote passed"
+	}
+
+	"NativeVotes Progress Passed Details"
+	{
+		"#format"	"{1:s}"
+		"en"		"Vote passed: {1}"
+	}
+
+	"NativeVotes Progress Failed"
+	{
+		"en"	"Vote failed"
+	}
+
 	"NativeVotes Command Usage"
 	{
 		"#format"	"{1:s}"

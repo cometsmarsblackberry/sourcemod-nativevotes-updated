@@ -73,6 +73,11 @@ int g_AppID = 0;
 
 #define MAX_CALLVOTE_SIZE					128
 
+#define PROGRESS_BAR_WIDTH					8
+#define PROGRESS_TEXT_LENGTH				220
+#define PROGRESS_CHOICE_LENGTH				64
+#define PROGRESS_CHOICE_MAX_BYTES			14
+
 //----------------------------------------------------------------------------
 // Global Variables
 int g_NextVote = 0;
@@ -85,8 +90,12 @@ enum
 	progress_chat,
 	progress_console,
 	progress_client_console,
+	progress_hudtext,
 	progress_hintcaption,
 	progress_hintcaption_icon,
+	progress_hintcaption_style,
+	progress_tf2_notify,
+	progress_tf2_notify_icon,
 	debug_level,
 	vote_delay,
 
@@ -99,6 +108,9 @@ ConVar g_ConVars[MAX_CONVARS];
 // Used to track current vote data
 Handle g_hVoteTimer;
 Handle g_hDisplayTimer;
+Handle g_hProgressHudSync;
+
+UserMsg g_HudNotifyCustom = INVALID_MESSAGE_ID;
 
 int g_Clients;
 int g_TotalClients;
@@ -119,6 +131,22 @@ float g_fStartTime;
 int g_TimeLeft;
 int g_ClientVotes[MAXPLAYERS+1];
 bool g_bRevoting[MAXPLAYERS+1];
+
+int g_ProgressVoteHandle;
+int g_ProgressRecipientUserIds[MAXPLAYERS+1];
+int g_ProgressRecipientCount;
+bool g_bTF2TenSecondNotificationSent;
+bool g_bTF2ResultNotificationSent;
+bool g_bTF2ResultNotificationSentToRecipient[MAXPLAYERS+1];
+
+enum ProgressNotification
+{
+	ProgressNotification_Started,
+	ProgressNotification_TenSeconds,
+	ProgressNotification_Passed,
+	ProgressNotification_PassedWithDetails,
+	ProgressNotification_Failed
+};
 
 ConVar sv_vote_holder_may_vote_no;
 
@@ -267,16 +295,29 @@ public void OnPluginStart()
 	g_ConVars[progress_chat] 		   = CreateConVar("nativevotes_progress_chat", "0", "Show current vote progress as chat messages", _, true, 0.0, true, 1.0);
 	g_ConVars[progress_console]  	   = CreateConVar("nativevotes_progress_console", "0", "Show current vote progress as console messages", _, true, 0.0, true, 1.0);
 	g_ConVars[progress_client_console] = CreateConVar("nativevotes_progress_client_console", "0", "Show current vote progress as console messages to clients", _, true, 0.0, true, 1.0);
+	g_ConVars[progress_hudtext]         = CreateConVar("nativevotes_progress_hudtext", "0", "Show a compact synchronized HUD panel with vote totals and option bars (when supported)", _, true, 0.0, true, 1.0);
+	g_ConVars[progress_hudtext].AddChangeHook(OnProgressHudTextChange);
 	g_ConVars[debug_level]              = CreateConVar("nativevotes_debug", "0", "Diagnostic logging: 0 = off, 1 = map list and callvote setup, 2 = verbose", _, true, 0.0, true, 2.0);
 	g_ConVars[vote_delay] 		 	   = CreateConVar("nativevotes_vote_delay", "0", "Sets the recommended time in between public votes", _, true, 0.0);
 	g_ConVars[vote_delay].AddChangeHook(OnVoteDelayChange);
+
+	g_hProgressHudSync = CreateHudSynchronizer();
 
 	Event instructor = CreateEvent("instructor_server_hint_create", true);
 	if (instructor != null)
 	{
 		g_ConVars[progress_hintcaption]      = CreateConVar("nativevotes_progress_hintcaption", "0", "Show current vote progress in a instructor hint caption", _, true, 0.0, true, 1.0);
+		g_ConVars[progress_hintcaption].AddChangeHook(OnProgressHintCaptionChange);
 		g_ConVars[progress_hintcaption_icon] = CreateConVar("nativevotes_progress_hintcaption_icon", "icon_tip", "Set the icon to use in instructor hint captions during votes");
+		g_ConVars[progress_hintcaption_style] = CreateConVar("nativevotes_progress_hintcaption_style", "0", "Instructor hint layout: 0 = original leaderboard, 1 = compact fixed option bars", _, true, 0.0, true, 1.0);
 		instructor.Cancel();
+	}
+
+	if (g_EngineVersion == Engine_TF2)
+	{
+		g_HudNotifyCustom = GetUserMessageId("HudNotifyCustom");
+		g_ConVars[progress_tf2_notify]      = CreateConVar("nativevotes_progress_tf2_notify", "0", "Show TF2 notification cards when a vote starts, reaches 10 seconds, and finishes", _, true, 0.0, true, 1.0);
+		g_ConVars[progress_tf2_notify_icon] = CreateConVar("nativevotes_progress_tf2_notify_icon", "default", "Built-in TF2 HUD icon used by vote notification cards; default selects an icon per milestone, empty disables the icon");
 	}
 
 	Game_InitializeCvars();
@@ -313,6 +354,26 @@ public void OnMapStart()
 		
 	g_OverridesSet = false;
 	g_NextVote = 0;
+	g_ProgressVoteHandle = 0;
+	g_ProgressRecipientCount = 0;
+	g_bTF2TenSecondNotificationSent = false;
+	g_bTF2ResultNotificationSent = false;
+	for (int i = 0; i <= MAXPLAYERS; i++)
+	{
+		g_bTF2ResultNotificationSentToRecipient[i] = false;
+	}
+}
+
+public void OnPluginEnd()
+{
+	ClearProgressHud();
+	for (int client = 1; client <= MaxClients; client++)
+	{
+		if (IsClientInGame(client) && !IsFakeClient(client))
+		{
+			EndInstructorHint(client);
+		}
+	}
 }
 
 public Action Timer_RetryCallVote(Handle timer, any data)
@@ -762,6 +823,46 @@ public void OnVoteDelayChange(ConVar convar, const char[] oldValue, const char[]
 	g_NextVote += StringToInt(newValue);
 }
 
+public void OnProgressHudTextChange(ConVar convar, const char[] oldValue, const char[] newValue)
+{
+	if (!convar.BoolValue)
+	{
+		ClearProgressHud();
+		return;
+	}
+
+	if (g_hProgressHudSync == null)
+	{
+		LogError("nativevotes_progress_hudtext is enabled, but this game does not support synchronized HUD text");
+		return;
+	}
+
+	if (Internal_IsVoteInProgress())
+	{
+		DrawHintProgress();
+	}
+}
+
+public void OnProgressHintCaptionChange(ConVar convar, const char[] oldValue, const char[] newValue)
+{
+	if (convar.BoolValue)
+	{
+		if (Internal_IsVoteInProgress())
+		{
+			DrawHintProgress();
+		}
+		return;
+	}
+
+	for (int client = 1; client <= MaxClients; client++)
+	{
+		if (IsClientInGame(client) && !IsFakeClient(client))
+		{
+			EndInstructorHint(client);
+		}
+	}
+}
+
 public void OnMapEnd()
 {
 	if (g_hCurVote != null)
@@ -776,6 +877,10 @@ public void OnMapEnd()
 	{
 		delete g_hDisplayTimer;
 	}
+
+	ClearProgressHud();
+	g_ProgressVoteHandle = 0;
+	g_ProgressRecipientCount = 0;
 
 //	g_hVoteTimer = INVALID_HANDLE;
 }
@@ -1142,7 +1247,10 @@ void DrawHintProgress()
 {
 	bool showHintbox = g_ConVars[progress_hintbox].BoolValue;
 	bool showHintCaption = g_ConVars[progress_hintcaption] != null && g_ConVars[progress_hintcaption].BoolValue;
-	if (!showHintbox && !showHintCaption)
+	bool showStyledHintCaption = showHintCaption && g_ConVars[progress_hintcaption_style] != null && g_ConVars[progress_hintcaption_style].BoolValue;
+	bool showHudText = g_ConVars[progress_hudtext].BoolValue && g_hProgressHudSync != null;
+	bool showTF2Notification = TF2ProgressNotificationsEnabled();
+	if (!showHintbox && !showHintCaption && !showHudText && !showTF2Notification)
 	{
 		return;
 	}
@@ -1156,10 +1264,21 @@ void DrawHintProgress()
 
 	int iTimeRemaining = RoundFloat(timeRemaining);
 
+	if (showTF2Notification && !g_bTF2TenSecondNotificationSent && g_VoteTime > 10 && iTimeRemaining <= 10)
+	{
+		g_bTF2TenSecondNotificationSent = true;
+		SendTF2ProgressNotification(g_hCurVote, ProgressNotification_TenSeconds, iTimeRemaining);
+	}
+
+	if (!showHintbox && !showHintCaption && !showHudText)
+	{
+		return;
+	}
+
 	NativeVotesType voteType = Data_GetType(g_hCurVote);
 	bool isMultVote = (voteType == NativeVotesType_Custom_Mult || voteType == NativeVotesType_NextLevelMult);
 	char leaderList[1024];
-	if (isMultVote)
+	if (isMultVote && (showHintbox || (showHintCaption && !showStyledHintCaption)))
 	{
 		BuildVoteLeaders(leaderList, sizeof(leaderList));
 	}
@@ -1168,12 +1287,23 @@ void DrawHintProgress()
 		leaderList[0] = '\0';
 	}
 
+	if (showHudText)
+	{
+		SetHudTextParams(0.35, 0.12, 1.15, 255, 225, 180, 255, 0, 0.0, 0.0, 0.15);
+	}
+
 	for (int client = 1; client <= MaxClients; client++)
 	{
 		if (!IsClientInGame(client) || IsFakeClient(client))
 			continue;
 
 		SetGlobalTransTarget(client);
+		if (showHudText && IsProgressRecipient(client))
+		{
+			char progressText[PROGRESS_TEXT_LENGTH];
+			BuildStyledProgressText(client, iTimeRemaining, progressText, sizeof(progressText));
+			ShowSyncHudText(client, g_hProgressHudSync, "%s", progressText);
+		}
 		if (showHintbox)
 		{
 			if (isMultVote)
@@ -1183,33 +1313,328 @@ void DrawHintProgress()
 		}
 		if (showHintCaption)
 		{
-			char baseText[TRANSLATION_LENGTH];
-			Format(baseText, sizeof(baseText), "%t", "Vote Count", g_NumVotes, g_TotalClients, iTimeRemaining);
-			if (isMultVote && leaderList[0] != '\0')
+			if (showStyledHintCaption)
 			{
-				int baseLen = strlen(baseText);
-				int maxLeaderLen = 256 - baseLen - 1;
-				if (maxLeaderLen < 1)
+				char caption[PROGRESS_TEXT_LENGTH];
+				BuildStyledProgressText(client, iTimeRemaining, caption, sizeof(caption));
+				SendInstructorHint(client, caption);
+			}
+			else
+			{
+				char baseText[TRANSLATION_LENGTH];
+				Format(baseText, sizeof(baseText), "%t", "Vote Count", g_NumVotes, g_TotalClients, iTimeRemaining);
+				if (isMultVote && leaderList[0] != '\0')
+				{
+					int baseLen = strlen(baseText);
+					int maxLeaderLen = 256 - baseLen - 1;
+					if (maxLeaderLen < 1)
+					{
+						char caption[1024];
+						Format(caption, sizeof(caption), "%t", "Vote Count", g_NumVotes, g_TotalClients, iTimeRemaining);
+						SendInstructorHint(client, caption);
+					}
+					else
+					{
+						char[] cappedLeaders = new char[maxLeaderLen + 1];
+						BuildVoteLeaders(cappedLeaders, maxLeaderLen + 1);
+						char caption[1024];
+						Format(caption, sizeof(caption), "%s\n%s", baseText, cappedLeaders);
+						SendInstructorHint(client, caption);
+					}
+				}
+				else
 				{
 					char caption[1024];
 					Format(caption, sizeof(caption), "%t", "Vote Count", g_NumVotes, g_TotalClients, iTimeRemaining);
 					SendInstructorHint(client, caption);
 				}
-				else
-				{
-					char[] cappedLeaders = new char[maxLeaderLen + 1];
-					BuildVoteLeaders(cappedLeaders, maxLeaderLen + 1);
-					char caption[1024];
-					Format(caption, sizeof(caption), "%s\n%s", baseText, cappedLeaders);
-					SendInstructorHint(client, caption);
-				}
 			}
-			else
+		}
+	}
+}
+
+void BuildStyledProgressText(int client, int timeRemaining, char[] progressText, int progressTextSize)
+{
+	Format(progressText, progressTextSize, "%T", "Vote Count", client, g_NumVotes, g_TotalClients, timeRemaining);
+
+	for (int item = 0; item < g_Items; item++)
+	{
+		char choice[PROGRESS_CHOICE_LENGTH];
+		if (!Data_GetItemDisplay(g_hCurVote, item, choice, sizeof(choice)))
+		{
+			continue;
+		}
+
+		NormalizeProgressChoice(choice, sizeof(choice), PROGRESS_CHOICE_MAX_BYTES);
+
+		int voteCount = g_hVotes.Get(item);
+		char bar[PROGRESS_BAR_WIDTH + 3];
+		BuildProgressBar(voteCount, g_NumVotes, bar, sizeof(bar));
+
+		char line[96];
+		Format(line, sizeof(line), "\n%d. %s %s %d", item + 1, choice, bar, voteCount);
+		if (strlen(progressText) + strlen(line) >= progressTextSize)
+		{
+			break;
+		}
+		StrCat(progressText, progressTextSize, line);
+	}
+}
+
+void BuildProgressBar(int voteCount, int totalVotes, char[] bar, int barSize)
+{
+	int filled;
+	if (voteCount > 0 && totalVotes > 0)
+	{
+		filled = RoundToFloor(float(voteCount * PROGRESS_BAR_WIDTH) / float(totalVotes));
+		if (filled < 1)
+		{
+			filled = 1;
+		}
+	}
+
+	int position;
+	bar[position++] = '[';
+	for (int i = 0; i < PROGRESS_BAR_WIDTH && position < barSize - 2; i++)
+	{
+		bar[position++] = i < filled ? '=' : '-';
+	}
+	bar[position++] = ']';
+	bar[position] = '\0';
+}
+
+void NormalizeProgressChoice(char[] choice, int choiceSize, int maxBytes)
+{
+	for (int i = 0; choice[i] != '\0'; i++)
+	{
+		if (choice[i] == '\n' || choice[i] == '\r' || choice[i] == '\t')
+		{
+			choice[i] = ' ';
+		}
+	}
+
+	if (strlen(choice) <= maxBytes || maxBytes < 4)
+	{
+		return;
+	}
+
+	int cut = maxBytes - 3;
+	while (cut > 0 && (choice[cut] & 0xC0) == 0x80)
+	{
+		cut--;
+	}
+	choice[cut] = '\0';
+	StrCat(choice, choiceSize, "...");
+}
+
+bool TF2ProgressNotificationsEnabled()
+{
+	return g_EngineVersion == Engine_TF2 &&
+		g_HudNotifyCustom != INVALID_MESSAGE_ID &&
+		g_ConVars[progress_tf2_notify] != null &&
+		g_ConVars[progress_tf2_notify].BoolValue;
+}
+
+void CacheProgressRecipients(NativeVote vote)
+{
+	g_ProgressVoteHandle = view_as<int>(vote);
+	g_ProgressRecipientCount = 0;
+	g_bTF2TenSecondNotificationSent = false;
+	g_bTF2ResultNotificationSent = false;
+	for (int i = 0; i <= MAXPLAYERS; i++)
+	{
+		g_bTF2ResultNotificationSentToRecipient[i] = false;
+	}
+
+	for (int client = 1; client <= MaxClients; client++)
+	{
+		if (g_ClientVotes[client] < VOTE_PENDING || !IsClientInGame(client) || IsFakeClient(client))
+		{
+			continue;
+		}
+
+		g_ProgressRecipientUserIds[g_ProgressRecipientCount++] = GetClientUserId(client);
+	}
+}
+
+bool IsProgressRecipient(int client)
+{
+	return FindProgressRecipient(client) != -1;
+}
+
+int FindProgressRecipient(int client)
+{
+	int userId = GetClientUserId(client);
+	for (int i = 0; i < g_ProgressRecipientCount; i++)
+	{
+		if (g_ProgressRecipientUserIds[i] == userId)
+		{
+			return i;
+		}
+	}
+	return -1;
+}
+
+void ClearProgressHud()
+{
+	if (g_hProgressHudSync == null)
+	{
+		return;
+	}
+
+	for (int client = 1; client <= MaxClients; client++)
+	{
+		if (IsClientInGame(client) && !IsFakeClient(client))
+		{
+			ClearSyncHud(client, g_hProgressHudSync);
+		}
+	}
+}
+
+void SendTF2ProgressNotification(NativeVote vote, ProgressNotification notificationType, int timeRemaining=0, const char[] details="", int onlyClient=0)
+{
+	if (!TF2ProgressNotificationsEnabled() || vote == null || view_as<int>(vote) != g_ProgressVoteHandle)
+	{
+		return;
+	}
+
+	char icon[64];
+	g_ConVars[progress_tf2_notify_icon].GetString(icon, sizeof(icon));
+	if (StrEqual(icon, "default", false))
+	{
+		GetDefaultTF2ProgressIcon(notificationType, icon, sizeof(icon));
+	}
+
+	int backgroundTeam = Data_GetTeam(vote);
+	if (backgroundTeam != NATIVEVOTES_TEAM_1 && backgroundTeam != NATIVEVOTES_TEAM_2)
+	{
+		backgroundTeam = NATIVEVOTES_TEAM_UNASSIGNED;
+	}
+
+	for (int i = 0; i < g_ProgressRecipientCount; i++)
+	{
+		int client = GetClientOfUserId(g_ProgressRecipientUserIds[i]);
+		if (client == 0 || (onlyClient != 0 && client != onlyClient) || !IsClientInGame(client) || IsFakeClient(client))
+		{
+			continue;
+		}
+
+		char text[256];
+		switch (notificationType)
+		{
+			case ProgressNotification_Started:
 			{
-				char caption[1024];
-				Format(caption, sizeof(caption), "%t", "Vote Count", g_NumVotes, g_TotalClients, iTimeRemaining);
-				SendInstructorHint(client, caption);
+				Format(text, sizeof(text), "%T", "NativeVotes Progress Started", client);
 			}
+			case ProgressNotification_TenSeconds:
+			{
+				Format(text, sizeof(text), "%T", "NativeVotes Progress Remaining", client, g_NumVotes, g_TotalClients, timeRemaining);
+			}
+			case ProgressNotification_Passed:
+			{
+				Format(text, sizeof(text), "%T", "NativeVotes Progress Passed", client);
+			}
+			case ProgressNotification_PassedWithDetails:
+			{
+				Format(text, sizeof(text), "%T", "NativeVotes Progress Passed Details", client, details);
+			}
+			case ProgressNotification_Failed:
+			{
+				Format(text, sizeof(text), "%T", "NativeVotes Progress Failed", client);
+			}
+		}
+		NormalizeProgressChoice(text, sizeof(text), 180);
+
+		Handle message = StartMessageOne("HudNotifyCustom", client, USERMSG_RELIABLE);
+		if (message == null)
+		{
+			continue;
+		}
+
+		BfWrite notification = UserMessageToBfWrite(message);
+		notification.WriteString(text);
+		notification.WriteString(icon);
+		notification.WriteByte(backgroundTeam);
+		EndMessage();
+	}
+}
+
+void GetDefaultTF2ProgressIcon(ProgressNotification notificationType, char[] icon, int iconSize)
+{
+	switch (notificationType)
+	{
+		case ProgressNotification_Started:
+		{
+			strcopy(icon, iconSize, "ico_notify_thirty_seconds");
+		}
+		case ProgressNotification_TenSeconds:
+		{
+			strcopy(icon, iconSize, "ico_notify_ten_seconds");
+		}
+		case ProgressNotification_Passed, ProgressNotification_PassedWithDetails:
+		{
+			strcopy(icon, iconSize, "ico_notify_flag_home");
+		}
+		case ProgressNotification_Failed:
+		{
+			strcopy(icon, iconSize, "ico_notify_flag_dropped");
+		}
+	}
+}
+
+void SendTF2ResultNotification(NativeVote vote, bool passed, const char[] details="")
+{
+	if (g_bTF2ResultNotificationSent || !TF2ProgressNotificationsEnabled() || vote == null || view_as<int>(vote) != g_ProgressVoteHandle)
+	{
+		return;
+	}
+
+	ProgressNotification notificationType = ProgressNotification_Failed;
+	if (passed)
+	{
+		notificationType = details[0] == '\0' ? ProgressNotification_Passed : ProgressNotification_PassedWithDetails;
+	}
+
+	for (int i = 0; i < g_ProgressRecipientCount; i++)
+	{
+		if (g_bTF2ResultNotificationSentToRecipient[i])
+		{
+			continue;
+		}
+
+		g_bTF2ResultNotificationSentToRecipient[i] = true;
+		int client = GetClientOfUserId(g_ProgressRecipientUserIds[i]);
+		if (client != 0)
+		{
+			SendTF2ProgressNotification(vote, notificationType, 0, details, client);
+		}
+	}
+	g_bTF2ResultNotificationSent = true;
+}
+
+void SendTF2CustomResultNotification(NativeVote vote, int client, const char[] details)
+{
+	if (g_bTF2ResultNotificationSent || !TF2ProgressNotificationsEnabled() || vote == null || view_as<int>(vote) != g_ProgressVoteHandle)
+	{
+		return;
+	}
+
+	int recipient = FindProgressRecipient(client);
+	if (recipient == -1 || g_bTF2ResultNotificationSentToRecipient[recipient])
+	{
+		return;
+	}
+
+	g_bTF2ResultNotificationSentToRecipient[recipient] = true;
+	SendTF2ProgressNotification(vote, details[0] == '\0' ? ProgressNotification_Passed : ProgressNotification_PassedWithDetails, 0, details, client);
+
+	g_bTF2ResultNotificationSent = true;
+	for (int i = 0; i < g_ProgressRecipientCount; i++)
+	{
+		if (GetClientOfUserId(g_ProgressRecipientUserIds[i]) != 0 && !g_bTF2ResultNotificationSentToRecipient[i])
+		{
+			g_bTF2ResultNotificationSent = false;
+			break;
 		}
 	}
 }
@@ -1291,6 +1716,7 @@ void EndVoting()
 			continue;
 		EndInstructorHint(client);
 	}
+	ClearProgressHud();
 	
 	int voteDelay = g_ConVars[vote_delay].IntValue;
 	if (voteDelay < 1)
@@ -1392,6 +1818,7 @@ bool StartVote(NativeVote vote, int num_clients, int[] clients, int max_time, in
 	}
 	
 	g_Clients = clientCount;
+	CacheProgressRecipients(vote);
 	
 	// Displaying the vote allocates its TF2 vote index. Publish the initial
 	// counts afterwards so vote_changed uses that same index.
@@ -1522,6 +1949,8 @@ void StartVoting()
 			Game_VoteYes(initiator);
 		}
 	}
+
+	SendTF2ProgressNotification(g_hCurVote, ProgressNotification_Started);
 }
 
 public Action DisplayTimer(Handle timer)
@@ -2353,9 +2782,10 @@ public int Native_DisplayPass(Handle plugin, int numParams)
 		return 0;
 	}
 
+	char winner[TRANSLATION_LENGTH];
+	winner[0] = '\0';
 	if (numParams >= 2)
 	{
-		char winner[TRANSLATION_LENGTH];
 		FormatNativeString(0, 2, 3, sizeof(winner), _, winner);
 		
 		Game_DisplayVotePass(vote, winner);
@@ -2364,6 +2794,8 @@ public int Native_DisplayPass(Handle plugin, int numParams)
 	{
 		Game_DisplayVotePass(vote);		
 	}
+
+	SendTF2ResultNotification(vote, true, winner);
 }
 
 // native NativeVotes_DisplayPassCustomToOne(Handle vote, client, const char[] format, any:...);
@@ -2384,6 +2816,7 @@ public int Native_DisplayPassCustomToOne(Handle plugin, int numParams)
 	FormatNativeString(0, 3, 4, TRANSLATION_LENGTH, _, translation);
 
 	Game_DisplayVotePassCustom(vote, translation, client);
+	SendTF2CustomResultNotification(vote, client, translation);
 }
 
 // native NativeVotes_DisplayPassEx(Handle vote, NativeVotesPassType passType, const char[] details = "");
@@ -2403,9 +2836,10 @@ public int Native_DisplayPassEx(Handle plugin, int numParams)
 		ThrowNativeError(SP_ERROR_NATIVE, "Invalid vote pass type: %d", passType);
 	}
 	
+	char winner[TRANSLATION_LENGTH];
+	winner[0] = '\0';
 	if (numParams >= 3)
 	{
-		char winner[TRANSLATION_LENGTH];
 		FormatNativeString(0, 3, 4, sizeof(winner), _, winner);
 		
 		Game_DisplayVotePassEx(vote, passType, winner);
@@ -2414,6 +2848,8 @@ public int Native_DisplayPassEx(Handle plugin, int numParams)
 	{
 		Game_DisplayVotePassEx(vote, passType);
 	}
+
+	SendTF2ResultNotification(vote, true, winner);
 }
 
 // native NativeVotes_DisplayRawPass(NativeVotesPassType:passType, const String:details[]="", team=NATIVEVOTES_ALL_TEAMS);
@@ -2500,6 +2936,7 @@ public int Native_DisplayFail(Handle plugin, int numParams)
 	NativeVotesFailType reason = view_as<NativeVotesFailType>(GetNativeCell(2));
 
 	Game_DisplayVoteFail(vote, reason);
+	SendTF2ResultNotification(vote, false);
 }
 
 // native NativeVotes_DisplayRawFail(NativeVotesFailType reason = NativeVotesFail_Generic, int team = NATIVEVOTES_ALL_TEAMS);
@@ -2773,6 +3210,10 @@ void SendInstructorHint(int client, const char[] caption)
 		event.SetString("hint_icon_onscreen", icon);
 		event.SetString("hint_icon_offscreen", icon);
 	}
+	if (g_ConVars[progress_hintcaption_style] != null && g_ConVars[progress_hintcaption_style].BoolValue)
+	{
+		event.SetString("hint_color", "255,220,160");
+	}
 	event.SetString("hint_activator_caption", caption);
 	event.SetInt("hint_allow_nodraw_target", 1);
 	event.SetInt("hint_nooffscreen", 1);
@@ -2785,7 +3226,7 @@ void SendInstructorHint(int client, const char[] caption)
 // Ends the vote progress hint for a specific client
 void EndInstructorHint(int client)
 {
-	if (g_ConVars[progress_hintcaption] == null || !g_ConVars[progress_hintcaption].BoolValue)
+	if (g_ConVars[progress_hintcaption] == null)
 	{
 		return;
 	}

@@ -117,6 +117,47 @@ enum NativeVotesType
 	NativeVotesType_ChgGamemode          /**< Fortress Connected: Yes/No, details are gamemode number */
 };
 
+/**
+ * Describes why the Rock The Vote module reached its trigger point.
+ */
+enum NativeVotesRTVTrigger
+{
+	NativeVotesRTVTrigger_PlayerThreshold = 0,
+	NativeVotesRTVTrigger_PopulationChange,
+	NativeVotesRTVTrigger_AdminForced
+};
+
+/**
+ * Describes what a triggered Rock The Vote request will do.
+ */
+enum NativeVotesRTVAction
+{
+	NativeVotesRTVAction_StartMapVote = 0,
+	NativeVotesRTVAction_ChangeToNextMap
+};
+
+/**
+ * Describes why the Scramble Teams module reached its trigger point.
+ */
+enum NativeVotesScrambleTrigger
+{
+	NativeVotesScrambleTrigger_PlayerThreshold = 0,
+	NativeVotesScrambleTrigger_PopulationChange,
+	NativeVotesScrambleTrigger_AdminForced
+};
+
+/**
+ * Describes a nomination state transition managed by MapChooser.
+ */
+enum NativeVotesNominationAction
+{
+	NativeVotesNominationAction_Added = 0,
+	NativeVotesNominationAction_Replaced,
+	NativeVotesNominationAction_Removed,
+	NativeVotesNominationAction_IncludedInVote,
+	NativeVotesNominationAction_ExcludedFromVote
+};
+
 enum NativeVotesPassType
 {
 	NativeVotesPass_None = 0,			 /**< Special placeholder for error value */
@@ -1490,6 +1531,107 @@ stock void NativeVotes_GetInfo(int param2, int &winningVotes, int &totalVotes)
 	winningVotes = param2 & 0xFFFF;
 	totalVotes = param2 >> 16;
 }
+
+/**
+ * Called after a NativeVotes vote starts.
+ *
+ * The vote handle is borrowed for the duration of the callback. Observers must
+ * not close or mutate it.
+ *
+ * @param vote          Vote that started.
+ * @param numClients    Number of clients initially eligible to vote.
+ */
+forward void NativeVotes_OnVoteStarted(NativeVote vote, int numClients);
+
+/**
+ * Called when a NativeVotes vote finishes and its complete result is available.
+ * Items with zero votes are omitted from itemIndexes and itemVotes, but may be
+ * enumerated from the borrowed vote handle with NativeVotes_GetItem().
+ *
+ * @param vote          Vote that finished.
+ * @param numVotes      Total number of votes cast.
+ * @param numClients    Number of clients eligible to vote.
+ * @param clientIndexes Client indexes, parallel with clientVotes.
+ * @param clientVotes   Selected item indexes, parallel with clientIndexes.
+ * @param numItems      Number of entries in itemIndexes and itemVotes.
+ * @param itemIndexes   Selected vote item indexes, ordered by vote count.
+ * @param itemVotes     Vote counts, parallel with itemIndexes.
+ */
+forward void NativeVotes_OnVoteFinished(
+	NativeVote vote,
+	int numVotes,
+	int numClients,
+	const int[] clientIndexes,
+	const int[] clientVotes,
+	int numItems,
+	const int[] itemIndexes,
+	const int[] itemVotes);
+
+/**
+ * Called when a NativeVotes vote is cancelled.
+ *
+ * @param vote          Vote that was cancelled.
+ * @param reason        VoteCancel reason.
+ * @param numVotes      Number of votes cast before cancellation.
+ * @param numClients    Number of clients initially eligible to vote.
+ */
+forward void NativeVotes_OnVoteCancelled(NativeVote vote, int reason, int numVotes, int numClients);
+
+/**
+ * Called once when the Rock The Vote module successfully triggers a map vote
+ * or an immediate change to the already selected next map.
+ *
+ * @param currentMap    Current map being rocked.
+ * @param votes         Accepted RTV requests at the trigger point.
+ * @param votesNeeded   Requests required at the trigger point.
+ * @param eligible      Eligible human voters at the trigger point.
+ * @param trigger       Cause of the trigger.
+ * @param action        Action taken by the module.
+ * @param initiator     Triggering client index, or 0 when there is no client.
+ */
+forward void NativeVotes_OnRTVTriggered(
+	const char[] currentMap,
+	int votes,
+	int votesNeeded,
+	int eligible,
+	NativeVotesRTVTrigger trigger,
+	NativeVotesRTVAction action,
+	int initiator);
+
+/**
+ * Called once when the Scramble Teams module successfully triggers a vote.
+ *
+ * @param currentMap    Current map.
+ * @param votes         Accepted scramble requests at the trigger point.
+ * @param votesNeeded   Requests required at the trigger point.
+ * @param eligible      Eligible human requesters at the trigger point.
+ * @param trigger       Cause of the trigger.
+ * @param initiator     Triggering client index, or 0 when there is no client.
+ */
+forward void NativeVotes_OnScrambleTriggered(
+	const char[] currentMap,
+	int votes,
+	int votesNeeded,
+	int eligible,
+	NativeVotesScrambleTrigger trigger,
+	int initiator);
+
+/**
+ * Called when MapChooser changes a nomination's state.
+ *
+ * The owner is a transient client index. A value of 0 represents a nomination
+ * without a player owner. previousMap is only populated for replacements.
+ *
+ * @param nominatedMap  Nominated map affected by the transition.
+ * @param owner         Owning client index, or 0 when unowned.
+ * @param action        Nomination state transition.
+ * @param previousMap   Replaced map, or an empty string for other actions.
+ */
+forward void NativeVotes_OnNominationChanged(
+	const char[] nominatedMap,
+	int owner,
+	NativeVotesNominationAction action,
+	const char[] previousMap);
 
 /**
  * Do not edit below this line!

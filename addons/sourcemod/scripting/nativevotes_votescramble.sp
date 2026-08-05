@@ -43,6 +43,7 @@ bool g_RegisteredScramble = false;
 int g_ScrambleTime = 0;
 float g_MapResetTime = -1.0;
 int g_SetRoundsPlayedTo = -1;
+GlobalForward g_ScrambleTriggeredForward;
 
 public void OnPluginStart()
 {
@@ -82,6 +83,15 @@ public void OnPluginStart()
     RegAdminCmd("sm_resetscramble", Command_ResetScramble, ADMFLAG_VOTE);
 
     AutoExecConfig(true, "votescramble");
+    g_ScrambleTriggeredForward = new GlobalForward(
+        "NativeVotes_OnScrambleTriggered",
+        ET_Ignore,
+        Param_String,
+        Param_Cell,
+        Param_Cell,
+        Param_Cell,
+        Param_Cell,
+        Param_Cell);
 
     OnMapEnd();
 
@@ -188,7 +198,7 @@ public void OnClientDisconnect(int client)
             return;
         }
 
-        StartScramble();
+        StartScramble(NativeVotesScrambleTrigger_PopulationChange);
     }
 }
 
@@ -260,7 +270,7 @@ public Action Command_ForceScramble(int client, int args)
     if (!g_ScrambleAllowed)
         g_ScrambleAllowed = true;
 
-    StartScramble();
+    StartScramble(NativeVotesScrambleTrigger_AdminForced, client);
     return Plugin_Handled;
 }
 
@@ -369,11 +379,11 @@ void AttemptScramble(int client, bool isVoteMenu=false)
 
     if (g_Votes >= g_VotesNeeded)
     {
-        StartScramble();
+        StartScramble(NativeVotesScrambleTrigger_PlayerThreshold, client);
     }
 }
 
-void StartScramble()
+void StartScramble(NativeVotesScrambleTrigger trigger, int initiator=0)
 {
     char yes[64], no[64];
     Format(yes, sizeof(yes), "%T", "Yes", LANG_SERVER);
@@ -382,8 +392,9 @@ void StartScramble()
     {
         NativeVote vote = NativeVotes_Create(ScrambleVoteHandler, NativeVotesType_ScrambleNow);
         NativeVotes_SetTitle(vote, "%t", "Scramble Teams");
-        NativeVotes_DisplayToAll(vote, g_ConVars[sv_vote_timer_duration].IntValue);
         NativeVotes_SetResultCallback(vote, ScrambleVoteResult);
+        NotifyScrambleTriggered(trigger, initiator);
+        NativeVotes_DisplayToAll(vote, g_ConVars[sv_vote_timer_duration].IntValue);
     }
     else
     {
@@ -392,6 +403,7 @@ void StartScramble()
         menu.AddItem("yes", yes);
         menu.AddItem("no", no);
         menu.ExitButton = false;
+        NotifyScrambleTriggered(trigger, initiator);
         for (int i = 1; i <= MaxClients; i++)
         {
             if (IsClientInGame(i) && !IsFakeClient(i))
@@ -405,6 +417,21 @@ void StartScramble()
 
     g_ScrambleTime = GetTime() + g_ConVars[interval].IntValue;
     CreateTimer(g_ConVars[interval].FloatValue, Timer_DelayScramble, _, TIMER_FLAG_NO_MAPCHANGE);
+}
+
+void NotifyScrambleTriggered(NativeVotesScrambleTrigger trigger, int initiator)
+{
+    char map[PLATFORM_MAX_PATH];
+    GetCurrentMap(map, sizeof(map));
+
+    Call_StartForward(g_ScrambleTriggeredForward);
+    Call_PushString(map);
+    Call_PushCell(g_Votes);
+    Call_PushCell(g_VotesNeeded);
+    Call_PushCell(g_Voters);
+    Call_PushCell(trigger);
+    Call_PushCell(initiator);
+    Call_Finish();
 }
 
 void ResetScramble()

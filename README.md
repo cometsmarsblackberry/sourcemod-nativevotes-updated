@@ -35,6 +35,28 @@ are verified by byte length and content hash at debug level 1. NativeVotes also
 reserves a 128 KiB dynamic-memory pool so unusually large TF2 map lists do not
 exhaust the plugin heap.
 
+### Observer forwards
+
+Plugins can observe voting without taking ownership of a vote through the
+forwards declared in `nativevotes.inc`:
+
+- `NativeVotes_OnVoteStarted` reports the vote and initial eligible-client count.
+- `NativeVotes_OnVoteFinished` reports aggregate item results and the complete
+  client/item arrays used by a normal vote-result callback.
+- `NativeVotes_OnVoteCancelled` reports the cancellation reason and counts at
+  cancellation time.
+- `NativeVotes_OnRTVTriggered` reports a successful RTV trigger, its cause, the
+  threshold counts, and whether it starts a map vote or changes immediately.
+- `NativeVotes_OnScrambleTriggered` reports a successful scramble trigger, its
+  cause, and the request threshold counts before the vote starts.
+- `NativeVotes_OnNominationChanged` reports canonical MapChooser nomination
+  transitions, including replacement and whether a nomination reached a ballot.
+
+Vote handles passed to observer forwards are borrowed and are only valid for the
+duration of the callback. Observers may enumerate them, but must not mutate or
+close them. The forwards expose events only; persistence and aggregation remain
+the responsibility of the observing plugin.
+
 ## <img src="https://cdn.fastly.steamstatic.com/steamcommunity/public/images/apps/440/033bdd91842b6aca0633ee1e5f3e6b82f2e8962f.ico" width="24" height="24" style="vertical-align: text-bottom;"> Team Fortress 2
 - Fixes:
   - ✔️/❌ vote counts.

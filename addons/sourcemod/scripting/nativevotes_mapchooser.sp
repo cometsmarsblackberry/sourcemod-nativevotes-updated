@@ -136,6 +136,7 @@ MapChange g_ChangeTime;
 
 GlobalForward g_NominationsResetForward;
 GlobalForward g_MapVoteStartedForward;
+GlobalForward g_NominationChangedForward;
 
 /* Upper bound of how many team there could be */
 #define MAX_TEAMS 10
@@ -265,6 +266,13 @@ public void OnPluginStart()
 	
 	g_NominationsResetForward = CreateGlobalForward("OnNominationRemoved", ET_Ignore, Param_String, Param_Cell);
 	g_MapVoteStartedForward   = CreateGlobalForward("OnMapVoteStarted", ET_Ignore);
+	g_NominationChangedForward = CreateGlobalForward(
+		"NativeVotes_OnNominationChanged",
+		ET_Ignore,
+		Param_String,
+		Param_Cell,
+		Param_Cell,
+		Param_String);
 }
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
@@ -382,6 +390,16 @@ public void OnConfigsExecuted()
 	
 	g_MapVoteCompleted = false;
 	
+	for (int i = 0; i < g_NominateList.Length; i++)
+	{
+		char nominatedMap[PLATFORM_MAX_PATH];
+		g_NominateList.GetString(i, nominatedMap, sizeof(nominatedMap));
+		NotifyNominationChanged(
+			nominatedMap,
+			g_NominateOwners.Get(i),
+			NativeVotesNominationAction_Removed);
+	}
+
 	g_NominateList.Clear();
 	g_NominateOwners.Clear();
 	
@@ -451,6 +469,10 @@ public void OnClientDisconnect(int client)
 	Call_PushString(oldmap);
 	Call_PushCell(g_NominateOwners.Get(index));
 	Call_Finish();
+	NotifyNominationChanged(
+		oldmap,
+		g_NominateOwners.Get(index),
+		NativeVotesNominationAction_Removed);
 	
 	g_NominateOwners.Erase(index);
 	g_NominateList.Erase(index);
@@ -1069,6 +1091,10 @@ void InitiateVote(MapChange when, ArrayList inputlist=null)
 			Call_PushString(map);
 			Call_PushCell(g_NominateOwners.Get(i));
 			Call_Finish();
+			NotifyNominationChanged(
+				map,
+				g_NominateOwners.Get(i),
+				NativeVotesNominationAction_IncludedInVote);
 		}
 		
 		/* Clear out the rest of the nominations array */
@@ -1081,7 +1107,11 @@ void InitiateVote(MapChange when, ArrayList inputlist=null)
 			Call_StartForward(g_NominationsResetForward);
 			Call_PushString(map);
 			Call_PushCell(g_NominateOwners.Get(i));
-			Call_Finish();			
+			Call_Finish();
+			NotifyNominationChanged(
+				map,
+				g_NominateOwners.Get(i),
+				NativeVotesNominationAction_ExcludedFromVote);
 		}
 		
 		/* There should currently be 'nominationsToAdd' unique maps in the vote */
@@ -1696,6 +1726,11 @@ NominateResult InternalNominateMap(char[] map, bool force, int owner)
 		Call_Finish();
 		
 		g_NominateList.SetString(index, map);
+		NotifyNominationChanged(
+			map,
+			owner,
+			NativeVotesNominationAction_Replaced,
+			oldmap);
 		return Nominate_Replaced;
 	}
 	
@@ -1738,11 +1773,17 @@ NominateResult InternalNominateMap(char[] map, bool force, int owner)
 			Call_PushString(oldmap);
 			Call_PushCell(g_NominateOwners.Get(0));
 			Call_Finish();
+			NotifyNominationChanged(
+				oldmap,
+				g_NominateOwners.Get(0),
+				NativeVotesNominationAction_Removed);
 
 			g_NominateList.Erase(0);
 			g_NominateOwners.Erase(0);
 		}
 	}
+
+	NotifyNominationChanged(map, owner, NativeVotesNominationAction_Added);
 	
 	return Nominate_Added;
 }
@@ -1779,6 +1820,10 @@ bool InternalRemoveNominationByMap(char[] map)
 			Call_PushString(oldmap);
 			Call_PushCell(g_NominateOwners.Get(i));
 			Call_Finish();
+			NotifyNominationChanged(
+				oldmap,
+				g_NominateOwners.Get(i),
+				NativeVotesNominationAction_Removed);
 
 			g_NominateList.Erase(i);
 			g_NominateOwners.Erase(i);
@@ -1820,6 +1865,7 @@ bool InternalRemoveNominationByOwner(int owner)
 		Call_PushString(oldmap);
 		Call_PushCell(owner);
 		Call_Finish();
+		NotifyNominationChanged(oldmap, owner, NativeVotesNominationAction_Removed);
 
 		g_NominateList.Erase(index);
 		g_NominateOwners.Erase(index);
@@ -1828,6 +1874,20 @@ bool InternalRemoveNominationByOwner(int owner)
 	}
 	
 	return false;
+}
+
+void NotifyNominationChanged(
+	const char[] nominatedMap,
+	int owner,
+	NativeVotesNominationAction action,
+	const char[] previousMap = "")
+{
+	Call_StartForward(g_NominationChangedForward);
+	Call_PushString(nominatedMap);
+	Call_PushCell(owner);
+	Call_PushCell(action);
+	Call_PushString(previousMap);
+	Call_Finish();
 }
 
 /* native bool RemoveNominationByOwner(int owner); */

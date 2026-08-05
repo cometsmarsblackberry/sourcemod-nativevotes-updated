@@ -128,6 +128,9 @@ ConVar sv_vote_holder_may_vote_no;
 
 // Forward
 Handle g_OverrideMaps;
+Handle g_VoteStartedForward;
+Handle g_VoteFinishedForward;
+Handle g_VoteCancelledForward;
 StringMap g_MapOverrides;
 bool g_OverridesSet;
 bool g_OverrideNextCallVote[MAXPLAYERS + 1];
@@ -299,6 +302,20 @@ public void OnPluginStart()
 		
 		g_OverrideMaps = CreateGlobalForward("NativeVotes_OverrideMaps", ET_Hook, Param_Cell);
 	}
+
+	g_VoteStartedForward = CreateGlobalForward("NativeVotes_OnVoteStarted", ET_Ignore, Param_Cell, Param_Cell);
+	g_VoteFinishedForward = CreateGlobalForward(
+		"NativeVotes_OnVoteFinished",
+		ET_Ignore,
+		Param_Cell,
+		Param_Cell,
+		Param_Cell,
+		Param_Array,
+		Param_Array,
+		Param_Cell,
+		Param_Array,
+		Param_Array);
+	g_VoteCancelledForward = CreateGlobalForward("NativeVotes_OnVoteCancelled", ET_Ignore, Param_Cell, Param_Cell, Param_Cell, Param_Cell);
 	
 	g_hVotes = new ArrayList(1, Game_GetMaxItems());
 	
@@ -950,10 +967,22 @@ void OnVoteStart(NativeVote vote)
 	
 	// Always called
 	DoAction(vote, MenuAction_VoteStart, 0, 0);
+
+	Call_StartForward(g_VoteStartedForward);
+	Call_PushCell(vote);
+	Call_PushCell(g_Clients);
+	Call_Finish();
 }
 
-void OnVoteCancel(NativeVote vote, int reason)
+void OnVoteCancel(NativeVote vote, int reason, int numVotes, int numClients)
 {
+	Call_StartForward(g_VoteCancelledForward);
+	Call_PushCell(vote);
+	Call_PushCell(reason);
+	Call_PushCell(numVotes);
+	Call_PushCell(numClients);
+	Call_Finish();
+
 	// Always called
 	DoAction(vote, MenuAction_VoteCancel, reason, 0);
 }
@@ -986,13 +1015,43 @@ Action DoAction(NativeVote vote, MenuAction action, int param1, int param2, Acti
 
 void OnVoteResults(NativeVote vote, const int[][] votes, int num_votes, int item_count, const int[][] client_list, int num_clients)
 {
+	// SourcePawn cannot pass two-dimensional arrays between plugins, so expose
+	// the same flattened representation used by result callbacks.
+	int[] client_indexes = new int[num_clients];
+	int[] client_items = new int[num_clients];
+	int[] vote_items = new int[item_count];
+	int[] vote_votes = new int[item_count];
+
+	for (int i = 0; i < item_count; i++)
+	{
+		vote_items[i] = votes[i][VOTEINFO_ITEM_INDEX];
+		vote_votes[i] = votes[i][VOTEINFO_ITEM_VOTES];
+	}
+
+	for (int i = 0; i < num_clients; i++)
+	{
+		client_indexes[i] = client_list[i][VOTEINFO_CLIENT_INDEX];
+		client_items[i] = client_list[i][VOTEINFO_CLIENT_ITEM];
+	}
+
+	Call_StartForward(g_VoteFinishedForward);
+	Call_PushCell(vote);
+	Call_PushCell(num_votes);
+	Call_PushCell(num_clients);
+	Call_PushArray(client_indexes, num_clients);
+	Call_PushArray(client_items, num_clients);
+	Call_PushCell(item_count);
+	Call_PushArray(vote_items, item_count);
+	Call_PushArray(vote_votes, item_count);
+	Call_Finish();
+
 	Handle resultsHandler = Data_GetResultCallback(vote);
 	
 	if (resultsHandler == null || !GetForwardFunctionCount(resultsHandler))
 	{
 		/* Call MenuAction_VoteEnd instead.  See if there are any extra winners. */
 		int num_items = 1;
-		for (int i = 1; i < num_votes; i++)
+		for (int i = 1; i < item_count; i++)
 		{
 			if (votes[i][VOTEINFO_ITEM_VOTES] != votes[0][VOTEINFO_ITEM_VOTES])
 			{
@@ -1021,27 +1080,6 @@ void OnVoteResults(NativeVote vote, const int[][] votes, int num_votes, int item
 	}
 	else
 	{
-		// This code is quite different than its C++ version, as we're reversing the logic previously done
-		
-		int[] client_indexes = new int[num_clients];
-		int[] client_items = new int[num_clients];
-		int[] vote_items = new int[item_count];
-		int[] vote_votes = new int[item_count];
-		
-		/* First array */
-		for (int i = 0; i < item_count; i++)
-		{
-			vote_items[i] = votes[i][VOTEINFO_ITEM_INDEX];
-			vote_votes[i] = votes[i][VOTEINFO_ITEM_VOTES];
-		}
-		
-		/* Second array */
-		for (int i = 0; i < num_clients; i++)
-		{
-			client_indexes[i] = client_list[i][VOTEINFO_CLIENT_INDEX];
-			client_items[i] = client_list[i][VOTEINFO_CLIENT_ITEM];
-		}
-
 		DebugLog(2, "Calling results forward for vote: %d, num_votes: %d, num_clients: %d, item_count: %d", vote, num_votes, num_clients, item_count);
 		
 		Call_StartForward(resultsHandler);
@@ -1314,8 +1352,10 @@ void EndVoting()
 		 * we need to save our states.
 		 */
 		NativeVote vote = g_hCurVote;
+		int numVotes = g_NumVotes;
+		int numClients = g_TotalClients;
 		Internal_Reset(true);
-		OnVoteCancel(vote, VoteCancel_Generic);
+		OnVoteCancel(vote, VoteCancel_Generic, numVotes, numClients);
 		OnEnd(vote, MenuEnd_VotingCancelled);
 		return;
 	}
@@ -1328,8 +1368,9 @@ void EndVoting()
 	if (!num_votes)
 	{
 		NativeVote vote = g_hCurVote;
+		int numClients = g_TotalClients;
 		Internal_Reset();
-		OnVoteCancel(vote, VoteCancel_NoVotes);
+		OnVoteCancel(vote, VoteCancel_NoVotes, 0, numClients);
 		OnEnd(vote, MenuEnd_VotingCancelled);
 		return;
 	}

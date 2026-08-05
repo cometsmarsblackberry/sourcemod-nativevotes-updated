@@ -85,6 +85,7 @@ bool g_NativeVotes;
 bool g_RegisteredMenusChangeLevel = false;
 int g_RTVTime = 0;
 bool g_Warmup = false;
+GlobalForward g_RTVTriggeredForward;
 
 public void OnPluginStart()
 {
@@ -104,6 +105,16 @@ public void OnPluginStart()
 	RegAdminCmd("sm_resetrtv", Command_ResetRTV, ADMFLAG_VOTE|ADMFLAG_CHANGEMAP);
 	
 	AutoExecConfig(true, "rtv");
+	g_RTVTriggeredForward = new GlobalForward(
+		"NativeVotes_OnRTVTriggered",
+		ET_Ignore,
+		Param_String,
+		Param_Cell,
+		Param_Cell,
+		Param_Cell,
+		Param_Cell,
+		Param_Cell,
+		Param_Cell);
 
 	OnMapEnd();
 
@@ -230,7 +241,7 @@ public void OnClientDisconnect(int client)
 			return;
 		}
 		
-		StartRTV();
+		StartRTV(NativeVotesRTVTrigger_PopulationChange);
 	}	
 }
 
@@ -270,7 +281,7 @@ public Action Command_ForceRTV(int client, int args)
 		g_RTVAllowed = true;
 	}
 
-	StartRTV();
+	StartRTV(NativeVotesRTVTrigger_AdminForced, client);
 	
 	return Plugin_Handled;
 }
@@ -387,7 +398,7 @@ void AttemptRTV(int client, bool isVoteMenu=false)
 	
 	if (g_Votes >= g_VotesNeeded)
 	{
-		StartRTV();
+		StartRTV(NativeVotesRTVTrigger_PlayerThreshold, client);
 	}	
 }
 
@@ -398,7 +409,7 @@ public Action Timer_DelayRTV(Handle timer)
 	return Plugin_Continue;
 }
 
-void StartRTV()
+void StartRTV(NativeVotesRTVTrigger trigger, int initiator=0)
 {
 	if (g_InChange)
 	{
@@ -411,6 +422,7 @@ void StartRTV()
 		char map[PLATFORM_MAX_PATH];
 		if (GetNextMap(map, sizeof(map)))
 		{
+			NotifyRTVTriggered(trigger, NativeVotesRTVAction_ChangeToNextMap, initiator);
 			GetMapDisplayName(map, map, sizeof(map));
 			Format(map, sizeof(map), "\x05%s\x01", map);
 			
@@ -428,6 +440,7 @@ void StartRTV()
 	if (CanMapChooserStartVote())
 	{
 		MapChange when = view_as<MapChange>(g_ConVars[changetime].IntValue);
+		NotifyRTVTriggered(trigger, NativeVotesRTVAction_StartMapVote, initiator);
 		InitiateMapChooserVote(when);
 		
 		ResetRTV();
@@ -435,6 +448,22 @@ void StartRTV()
 		g_RTVAllowed = false;
 		CreateTimer(g_ConVars[interval].FloatValue, Timer_DelayRTV, _, TIMER_FLAG_NO_MAPCHANGE);
 	}
+}
+
+void NotifyRTVTriggered(NativeVotesRTVTrigger trigger, NativeVotesRTVAction action, int initiator)
+{
+	char map[PLATFORM_MAX_PATH];
+	GetCurrentMap(map, sizeof(map));
+
+	Call_StartForward(g_RTVTriggeredForward);
+	Call_PushString(map);
+	Call_PushCell(g_Votes);
+	Call_PushCell(g_VotesNeeded);
+	Call_PushCell(g_Voters);
+	Call_PushCell(trigger);
+	Call_PushCell(action);
+	Call_PushCell(initiator);
+	Call_Finish();
 }
 
 void ResetRTV()

@@ -39,6 +39,7 @@
 #undef REQUIRE_PLUGIN
 #include <adminmenu>
 #include <nativevotes>
+#include <nativevotes_mapeligibility>
 #include <sourcebanspp>
 
 #define PLUGIN_PREFIX "[\x04NativeVotes\x01]"

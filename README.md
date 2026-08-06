@@ -97,6 +97,7 @@ the responsibility of the observing plugin.
 |`sm_nominate_maxfound`|`0`|Maximum number of nomination matches to add to the menu.<br>0 = infinite|
 
 ## [MapChooser](https://github.com/Heapons/sourcemod-nativevotes-updated/blob/master/addons/sourcemod/scripting/nativevotes_mapchooser.sp)
+- Workshop maps that are still refreshing, downloading, or in an error state are excluded from map votes.
 - Start the next-map vote at TF2's actual map end by setting `sm_mapvote_start` to `0`.
   - MapChooser temporarily extends the intermission to fit the vote (including a possible runoff), closes the automatically opened scoreboard, and changes to the selected map once the result is ready.
   - The `Extend Map` option is not offered in this mode because TF2 has already committed to changing levels.

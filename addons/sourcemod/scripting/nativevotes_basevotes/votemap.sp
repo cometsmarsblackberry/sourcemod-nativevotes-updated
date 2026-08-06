@@ -40,18 +40,55 @@ bool g_VoteMapInUse;
 
 void DisplayVoteMapMenu(int client, int mapCount, char maps[5][PLATFORM_MAX_PATH])
 {
-	LogAction(client, -1, "\"%L\" initiated a map vote.", client);
-	CShowActivity2(client, PLUGIN_PREFIX ... " ", "%t", "Initiated Vote Map");
-	
-	g_VoteType = map;
-
 	char resolvedMaps[5][PLATFORM_MAX_PATH];
 	char displayNames[5][PLATFORM_MAX_PATH];
+	int availableCount;
 	for (int i = 0; i < mapCount; i++)
 	{
-		FindMap(maps[i], resolvedMaps[i], sizeof(resolvedMaps[]));
-		GetMapDisplayName(resolvedMaps[i], displayNames[i], sizeof(displayNames[]));
+		FindMapResult mapResult = FindMap(
+			maps[i],
+			resolvedMaps[availableCount],
+			sizeof(resolvedMaps[]));
+
+		if (!NativeVotes_IsMapResultAvailable(mapResult))
+		{
+			if (mapResult == FindMap_NotFound)
+			{
+				CReplyToCommand(client, PLUGIN_PREFIX ... " %t", "Map was not found", maps[i]);
+			}
+			else
+			{
+				char unavailableName[PLATFORM_MAX_PATH];
+				GetMapDisplayName(
+					resolvedMaps[availableCount],
+					unavailableName,
+					sizeof(unavailableName));
+				CReplyToCommand(
+					client,
+					PLUGIN_PREFIX ... " %t",
+					"NativeVotes Map Unavailable",
+					unavailableName);
+			}
+			continue;
+		}
+
+		GetMapDisplayName(
+			resolvedMaps[availableCount],
+			displayNames[availableCount],
+			sizeof(displayNames[]));
+		availableCount++;
 	}
+
+	if (!availableCount)
+	{
+		return;
+	}
+
+	mapCount = availableCount;
+	LogAction(client, -1, "\"%L\" initiated a map vote.", client);
+	CShowActivity2(client, PLUGIN_PREFIX ... " ", "%t", "Initiated Vote Map");
+
+	g_VoteType = map;
 
 	if (g_NativeVotes && (mapCount == 1 || NativeVotes_IsVoteTypeSupported(NativeVotesType_NextLevelMult)) )
 	{
@@ -147,7 +184,7 @@ public int MenuHandler_Confirm(Handle menu, MenuAction action, int param1, int p
 		}
 		case MenuAction_Select:
 		{
-			char maps[5][64];
+			char maps[5][PLATFORM_MAX_PATH];
 			int selectedmaps = GetArraySize(g_SelectedMaps);
 			for (int i = 0; i < selectedmaps; i++)
 			{
@@ -179,21 +216,49 @@ public int MenuHandler_Map(Handle menu, MenuAction action, int param1, int param
 		}
 		case MenuAction_DrawItem:
 		{
-			char info[32], name[32];
+			char info[PLATFORM_MAX_PATH], name[PLATFORM_MAX_PATH];
 			GetMenuItem(menu, param2, info, sizeof(info), _, name, sizeof(name));
 			if (FindStringInArray(g_SelectedMaps, info) != -1)
 			{
 				return ITEMDRAW_IGNORE;
 			}
-			else
+
+			char resolvedMap[PLATFORM_MAX_PATH];
+			if (!NativeVotes_FindAvailableMap(info, resolvedMap, sizeof(resolvedMap)))
 			{
-				return ITEMDRAW_DEFAULT;
+				return ITEMDRAW_DISABLED;
 			}
+
+			return ITEMDRAW_DEFAULT;
 		}
 		case MenuAction_Select:
 		{
-			char info[32], name[32];
+			char info[PLATFORM_MAX_PATH], name[PLATFORM_MAX_PATH];
 			GetMenuItem(menu, param2, info, sizeof(info), _, name, sizeof(name));
+
+			char resolvedMap[PLATFORM_MAX_PATH];
+			FindMapResult mapResult = FindMap(info, resolvedMap, sizeof(resolvedMap));
+			if (!NativeVotes_IsMapResultAvailable(mapResult))
+			{
+				if (mapResult == FindMap_NotFound)
+				{
+					CReplyToCommand(param1, PLUGIN_PREFIX ... " %t", "Map was not found", info);
+				}
+				else
+				{
+					char displayName[PLATFORM_MAX_PATH];
+					GetMapDisplayName(resolvedMap, displayName, sizeof(displayName));
+					CReplyToCommand(
+						param1,
+						PLUGIN_PREFIX ... " %t",
+						"NativeVotes Map Unavailable",
+						displayName);
+				}
+
+				DisplayMenu(g_MapList, param1, MENU_TIME_FOREVER);
+				return Plugin_Continue;
+			}
+
 			PushArrayString(g_SelectedMaps, info);
 			/* Redisplay the list */
 			if (GetArraySize(g_SelectedMaps) < 5)
@@ -274,12 +339,27 @@ public Action Command_Votemap(int client, int args)
 	while (pos != -1 && mapCount < 5)
 	{
 		pos = BreakString(text[len], maps[mapCount], sizeof(maps[]));
-		
-		if (!IsMapValid(maps[mapCount]))
+
+		char resolvedMap[PLATFORM_MAX_PATH];
+		FindMapResult mapResult = FindMap(maps[mapCount], resolvedMap, sizeof(resolvedMap));
+		if (mapResult == FindMap_NotFound)
 		{
 			CReplyToCommand(client, PLUGIN_PREFIX ... " %t", "Map was not found", maps[mapCount]);
 			return Plugin_Handled;
 		}
+		else if (!NativeVotes_IsMapResultAvailable(mapResult))
+		{
+			char displayName[PLATFORM_MAX_PATH];
+			GetMapDisplayName(resolvedMap, displayName, sizeof(displayName));
+			CReplyToCommand(
+				client,
+				PLUGIN_PREFIX ... " %t",
+				"NativeVotes Map Unavailable",
+				displayName);
+			return Plugin_Handled;
+		}
+
+		strcopy(maps[mapCount], sizeof(maps[]), resolvedMap);
 
 		mapCount++;
 		

@@ -16,6 +16,12 @@
 		"en"		"Usage: {1}"
 	}
 
+	"NativeVotes Map Unavailable"
+	{
+		"#format"	"{1:s}"
+		"en"		"Map {1} is not currently available."
+	}
+
 	"NativeVotes Medieval RP Only"
 	{
 		"en"	"This vote is only available in Medieval Mode."

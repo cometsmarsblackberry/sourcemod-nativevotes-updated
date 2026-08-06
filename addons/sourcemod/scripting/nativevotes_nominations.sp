@@ -35,6 +35,7 @@
 
 #include <sourcemod>
 #include <mapchooser>
+#include <nativevotes_mapeligibility>
 
 #undef REQUIRE_PLUGIN
 #include <nativevotes>
@@ -204,7 +205,8 @@ public Action Command_Addmap(int client, int args)
 	char mapname[PLATFORM_MAX_PATH], resolvedMap[PLATFORM_MAX_PATH];
 	GetCmdArg(1, mapname, sizeof(mapname));
 
-	if (FindMap(mapname, resolvedMap, sizeof(resolvedMap)) == FindMap_NotFound)
+	FindMapResult mapResult = FindMap(mapname, resolvedMap, sizeof(resolvedMap));
+	if (mapResult == FindMap_NotFound)
 	{
 		// We couldn't resolve the map entry to a filename, so...
 		CReplyToCommand(client, PLUGIN_PREFIX ... " %t", "Map was not found", mapname);
@@ -213,6 +215,12 @@ public Action Command_Addmap(int client, int args)
 	
 	char displayName[PLATFORM_MAX_PATH];
 	GetMapDisplayName(resolvedMap, displayName, sizeof(displayName));
+	if (!NativeVotes_IsMapResultAvailable(mapResult))
+	{
+		CReplyToCommand(client, PLUGIN_PREFIX ... " %t", "NativeVotes Map Unavailable", displayName);
+		return Plugin_Handled;
+	}
+
 	Format(displayName, sizeof(displayName), "\x05%s\x01", displayName);
 	
 	int status;
@@ -364,7 +372,8 @@ int FindMatchingMaps(ArrayList mapList, ArrayList results, const char[] input)
 void AttemptNominate(int client, const char[] map, int size, bool isVoteMenu)
 {
 	char mapname[PLATFORM_MAX_PATH];
-	if (FindMap(map, mapname, size) == FindMap_NotFound)
+	FindMapResult mapResult = FindMap(map, mapname, size);
+	if (mapResult == FindMap_NotFound)
 	{
 		// We couldn't resolve the map entry to a filename, so...
 		CReplyToCommand(client, PLUGIN_PREFIX ... " %t", "Map was not found", mapname);
@@ -378,6 +387,16 @@ void AttemptNominate(int client, const char[] map, int size, bool isVoteMenu)
 	
 	char displayName[PLATFORM_MAX_PATH];
 	GetMapDisplayName(mapname, displayName, sizeof(displayName));
+	if (!NativeVotes_IsMapResultAvailable(mapResult))
+	{
+		CReplyToCommand(client, PLUGIN_PREFIX ... " %t", "NativeVotes Map Unavailable", displayName);
+		if (isVoteMenu && g_NativeVotes)
+		{
+			NativeVotes_DisplayCallVoteFail(client, NativeVotesCallFail_MapNotValid);
+		}
+		return;
+	}
+
 	Format(displayName, sizeof(displayName), "\x05%s\x01", displayName);
 	
 	int status;
@@ -547,6 +566,12 @@ public int MenuHandler_MapSelect(Menu menu, MenuAction action, int param1, int p
 		{
 			char map[PLATFORM_MAX_PATH];
 			menu.GetItem(param2, map, sizeof(map));
+
+			char resolvedMap[PLATFORM_MAX_PATH];
+			if (!NativeVotes_FindAvailableMap(map, resolvedMap, sizeof(resolvedMap)))
+			{
+				return ITEMDRAW_DISABLED;
+			}
 			
 			int status;
 			if (!g_MapTrie.GetValue(map, status))
@@ -703,12 +728,18 @@ public Action NativeVotes_OverrideMaps(StringMap mapList)
 		{
 			continue;
 		}
+
+		char resolvedMap[PLATFORM_MAX_PATH];
+		if (!NativeVotes_FindAvailableMap(map, resolvedMap, sizeof(resolvedMap)))
+		{
+			continue;
+		}
 		
 		char displayName[PLATFORM_MAX_PATH];
-		GetMapDisplayName(map, displayName, sizeof(displayName));
+		GetMapDisplayName(resolvedMap, displayName, sizeof(displayName));
 
 		// Display name first
-		mapList.SetString(displayName, map);
+		mapList.SetString(displayName, resolvedMap);
 	}
 	
 	delete snapshot;

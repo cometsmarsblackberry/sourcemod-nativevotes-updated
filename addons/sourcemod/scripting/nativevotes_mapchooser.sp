@@ -39,6 +39,7 @@
 #include <sdktools>
 #include <nextmap>
 #include <regex>
+#include <nativevotes_mapeligibility>
 
 #undef REQUIRE_PLUGIN
 #include <nativevotes>
@@ -712,9 +713,16 @@ public void Event_TeamplayGameOver(Event event, const char[] name, bool dontBroa
 	if (!IsMapEndVoteModeEnabled()
 		|| g_MapEndVoteTriggered
 		|| !g_MapList.Length
-		|| (!g_NominateList.Length && !g_NextMapList.Length)
 		|| g_MapVoteCompleted
 		|| !HasHumanPlayers())
+	{
+		return;
+	}
+
+	// Workshop downloads are asynchronous. Refresh the choices at the actual
+	// map end instead of relying on the snapshot made during config execution.
+	RefreshMapVoteChoices();
+	if (!g_NominateList.Length && !g_NextMapList.Length)
 	{
 		return;
 	}
@@ -1001,6 +1009,13 @@ void InitiateVote(MapChange when, ArrayList inputlist=null)
 	{
 		return;
 	}
+
+	if (inputlist == null)
+	{
+		// A workshop map may have completed or failed its download since the
+		// initial candidate list was created. Build from current engine state.
+		RefreshMapVoteChoices();
+	}
 	
 	g_ChangeTime = when;
 	
@@ -1156,18 +1171,19 @@ void InitiateVote(MapChange when, ArrayList inputlist=null)
 		for (int i = 0; i < size; i++)
 		{
 			inputlist.GetString(i, map, sizeof(map));
-			
-			if (IsMapValid(map))
+
+			char resolvedMap[PLATFORM_MAX_PATH];
+			if (NativeVotes_FindAvailableMap(map, resolvedMap, sizeof(resolvedMap)))
 			{
 				char displayName[PLATFORM_MAX_PATH];
-				GetMapDisplayName(map, displayName, sizeof(displayName));
+				GetMapDisplayName(resolvedMap, displayName, sizeof(displayName));
 				if (g_NativeVotes)
 				{
-					g_VoteNative.AddItem(map, displayName);
+					g_VoteNative.AddItem(resolvedMap, displayName);
 				}
 				else
 				{
-					g_VoteMenu.AddItem(map, displayName);
+					g_VoteMenu.AddItem(resolvedMap, displayName);
 				}
 			}	
 		}
@@ -1653,6 +1669,44 @@ bool RemoveStringFromArray(ArrayList array, char[] str)
 	return false;
 }
 
+void RemoveUnavailableNominations()
+{
+	char map[PLATFORM_MAX_PATH];
+	char resolvedMap[PLATFORM_MAX_PATH];
+
+	for (int i = g_NominateList.Length - 1; i >= 0; i--)
+	{
+		g_NominateList.GetString(i, map, sizeof(map));
+		if (NativeVotes_FindAvailableMap(map, resolvedMap, sizeof(resolvedMap)))
+		{
+			continue;
+		}
+
+		int owner = g_NominateOwners.Get(i);
+
+		// Let the nominations module re-enable its menu entry, then report that
+		// the nomination could not be placed on this ballot.
+		Call_StartForward(g_NominationsResetForward);
+		Call_PushString(map);
+		Call_PushCell(owner);
+		Call_Finish();
+		NotifyNominationChanged(
+			map,
+			owner,
+			NativeVotesNominationAction_ExcludedFromVote);
+
+		g_NominateList.Erase(i);
+		g_NominateOwners.Erase(i);
+		LogMessage("Excluded unavailable nomination \"%s\" from the map vote.", map);
+	}
+}
+
+void RefreshMapVoteChoices()
+{
+	RemoveUnavailableNominations();
+	CreateNextVote();
+}
+
 void CreateNextVote()
 {
 	g_NextMapList.Clear();
@@ -1664,7 +1718,7 @@ void CreateNextVote()
 	for (int i = 0; i < g_MapList.Length; i++)
 	{
 		g_MapList.GetString(i, map, sizeof(map));
-		if (FindMap(map, map, sizeof(map)) != FindMap_NotFound)
+		if (NativeVotes_FindAvailableMap(map, map, sizeof(map)))
 		{
 			tempMaps.PushString(map);
 		}
@@ -1702,7 +1756,8 @@ bool CanVoteStart()
 
 NominateResult InternalNominateMap(char[] map, bool force, int owner)
 {
-	if (!IsMapValid(map))
+	char resolvedMap[PLATFORM_MAX_PATH];
+	if (!NativeVotes_FindAvailableMap(map, resolvedMap, sizeof(resolvedMap)))
 	{
 		return Nominate_InvalidMap;
 	}

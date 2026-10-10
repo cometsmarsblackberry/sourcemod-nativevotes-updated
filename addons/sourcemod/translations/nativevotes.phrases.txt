@@ -16,6 +16,27 @@
 		"en"		"Usage: {1}"
 	}
 
+	"NativeVotes No Nominations"
+	{
+		"en"	"No maps have been nominated."
+	}
+
+	"NativeVotes Nominations Header"
+	{
+		"en"	"Current nominations (map - nominator):"
+	}
+
+	"NativeVotes Nomination Entry"
+	{
+		"#format"	"{1:s},{2:s}"
+		"en"		"{1} - {2}"
+	}
+
+	"NativeVotes Nomination Server"
+	{
+		"en"	"Server/admin"
+	}
+
 	"NativeVotes Medieval RP Only"
 	{
 		"en"	"This vote is only available in Medieval Mode."

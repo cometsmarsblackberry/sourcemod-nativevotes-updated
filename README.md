@@ -89,6 +89,7 @@ the responsibility of the observing plugin.
 
 ## [Nominations](https://github.com/Heapons/sourcemod-nativevotes-updated/blob/master/addons/sourcemod/scripting/nativevotes_nominations.sp)
 - Support partial map name matches
+- Use `sm_nominations` to list the currently nominated maps and who nominated each one.
 ---
 |Name|Default Value|Description|
 |-|-|-|

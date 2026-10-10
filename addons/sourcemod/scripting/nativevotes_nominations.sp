@@ -100,6 +100,7 @@ public void OnPluginStart()
 	g_ConVars[nextlevel_allowed] = FindConVar("sv_vote_issue_nextlevel_allowed");
 
 	RegConsoleCmd("sm_nominate", Command_Nominate);
+	RegConsoleCmd("sm_nominations", Command_Nominations, "Lists all nominated maps and their nominators.");
 	
 	RegAdminCmd("sm_nominate_addmap", Command_Addmap, ADMFLAG_CHANGEMAP, "sm_nominate_addmap <mapname> - Forces a map to be on the next mapvote.");
 	RegAdminCmd("sm_reload_nominations", Command_ReloadNominations, ADMFLAG_RCON, "Reload the nomination map cycle in-place");
@@ -244,6 +245,50 @@ Action Command_ReloadNominations(int client, int args)
 {
     OnConfigsExecuted();
     return Plugin_Handled;
+}
+
+public Action Command_Nominations(int client, int args)
+{
+	ArrayList maps = new ArrayList(ByteCountToCells(PLATFORM_MAX_PATH));
+	ArrayList owners = new ArrayList();
+	GetNominatedMapList(maps, owners);
+
+	if (maps.Length == 0)
+	{
+		CReplyToCommand(client, PLUGIN_PREFIX ... " %t", "NativeVotes No Nominations");
+		delete maps;
+		delete owners;
+		return Plugin_Handled;
+	}
+
+	CReplyToCommand(client, PLUGIN_PREFIX ... " %t", "NativeVotes Nominations Header");
+
+	char map[PLATFORM_MAX_PATH];
+	char displayName[PLATFORM_MAX_PATH];
+	char nominator[MAX_NAME_LENGTH + 16];
+
+	for (int i = 0; i < maps.Length; i++)
+	{
+		maps.GetString(i, map, sizeof(map));
+		GetMapDisplayName(map, displayName, sizeof(displayName));
+		Format(displayName, sizeof(displayName), "\x05%s\x01", displayName);
+
+		int owner = owners.Get(i);
+		if (owner > 0 && IsClientInGame(owner))
+		{
+			GetPlayerName(owner, nominator, sizeof(nominator));
+			CReplyToCommandEx(client, owner, PLUGIN_PREFIX ... " %t", "NativeVotes Nomination Entry", displayName, nominator);
+		}
+		else
+		{
+			Format(nominator, sizeof(nominator), "%T", "NativeVotes Nomination Server", client);
+			CReplyToCommand(client, PLUGIN_PREFIX ... " %t", "NativeVotes Nomination Entry", displayName, nominator);
+		}
+	}
+
+	delete maps;
+	delete owners;
+	return Plugin_Handled;
 }
 
 public void OnClientSayCommand_Post(int client, const char[] command, const char[] sArgs)

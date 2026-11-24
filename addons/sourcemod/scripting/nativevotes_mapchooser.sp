@@ -74,6 +74,7 @@ enum
 	/* Plugin ConVars */
 	mapvote_endvote,
 	mapvote_start,
+	mapvote_reminder,
 	mapvote_startround,
 	mapvote_startfrags,
 	extendmap_timestep,
@@ -100,6 +101,7 @@ enum
 ConVar g_ConVars[MAX_CONVARS];
 
 Handle g_VoteTimer = null;
+Handle g_VoteReminderTimer = null;
 Handle g_RetryTimer = null;
 
 // g_MapList stores unresolved names so we can resolve them after every map change in the workshop updates.
@@ -116,6 +118,7 @@ NativeVote g_VoteNative;
 int g_Extends;
 int g_TotalRounds;
 bool g_HasVoteStarted;
+bool g_VoteReminderShown;
 bool g_WaitingForVote;
 bool g_TimeleftUpdatePending;
 bool g_MapVoteCompleted;
@@ -152,6 +155,7 @@ int g_winCount[MAX_TEAMS];
 #define MAP_END_RUNOFF_DELAY 3
 // InitiateVote retries at this interval if another vote is already running.
 #define MAP_END_RETRY_DELAY 5
+#define MAP_VOTE_REMINDER_TIME 60
 
 // Libraries
 bool g_NativeVotes;
@@ -180,6 +184,7 @@ public void OnPluginStart()
 
 	g_ConVars[mapvote_endvote] 		 		= CreateConVar("sm_mapvote_endvote", "1", "Specifies if MapChooser should run an end of map vote.", _, true, 0.0, true, 1.0);
 	g_ConVars[mapvote_start] 		 		= CreateConVar("sm_mapvote_start", "3.0", "Specifies when to start the vote based on time remaining. Set to 0 on TF2 to start the vote when the map ends.", _, true, 0.0);
+	g_ConVars[mapvote_reminder]           = CreateConVar("sm_mapvote_reminder", "0", "Show a nomination reminder in chat one minute before the time-based map vote (or TF2's map time limit).", _, true, 0.0, true, 1.0);
 	g_ConVars[mapvote_startround]    		= CreateConVar("sm_mapvote_startround", "2.0", "Specifies when to start the vote based on rounds remaining. Use '0' on TF2 to start vote during bonus round time", _, true, 0.0);
 	g_ConVars[mapvote_startfrags]    		= CreateConVar("sm_mapvote_startfrags", "5.0", "Specifies when to start the vote base on frags remaining.", _, true, 1.0);
 	g_ConVars[extendmap_timestep]    		= CreateConVar("sm_extendmap_timestep", "15", "Specifies how much many more minutes each extension makes.", _, true, 5.0);
@@ -200,6 +205,7 @@ public void OnPluginStart()
 
 	g_ConVars[mapvote_endvote].AddChangeHook(ConVarChanged_MapVoteTiming);
 	g_ConVars[mapvote_start].AddChangeHook(ConVarChanged_MapVoteTiming);
+	g_ConVars[mapvote_reminder].AddChangeHook(ConVarChanged_MapVoteTiming);
 
 	EngineVersion engine = GetEngineVersion();
 	g_IsTF2 = engine == Engine_TF2;
@@ -349,6 +355,8 @@ public void OnLibraryRemoved(const char[] name)
 public void OnConfigsExecuted()
 {
 	g_TimeleftUpdatePending = false;
+	g_MapVoteCompleted = false;
+	g_VoteReminderShown = false;
 	g_MapEndVoteTriggered = false;
 	g_MapEndVotePending = false;
 
@@ -388,8 +396,6 @@ public void OnConfigsExecuted()
 		
 	g_Extends = 0;
 	
-	g_MapVoteCompleted = false;
-	
 	for (int i = 0; i < g_NominateList.Length; i++)
 	{
 		char nominatedMap[PLATFORM_MAX_PATH];
@@ -423,6 +429,7 @@ public void OnMapEnd()
 	RestoreChatTime();
 
 	g_HasVoteStarted = false;
+	g_VoteReminderShown = false;
 	g_WaitingForVote = false;
 	g_TimeleftUpdatePending = false;
 	g_ChangeMapAtRoundEnd = false;
@@ -431,6 +438,7 @@ public void OnMapEnd()
 	g_MapEndVotePending = false;
 	
 	g_VoteTimer = null;
+	g_VoteReminderTimer = null;
 	g_RetryTimer = null;
 	
 	char map[PLATFORM_MAX_PATH];
@@ -503,6 +511,7 @@ public Action Command_SetNextMap(int client, int args)
 
 	SetNextMap(map);
 	g_MapVoteCompleted = true;
+	delete g_VoteReminderTimer;
 
 	return Plugin_Handled;
 }
@@ -560,8 +569,10 @@ void SetupTimeleftTimer()
 		g_VoteTimer = null;
 	}
 
-	// In this TF2 mode the game-over event starts the vote at the real map end.
-	if (!g_ConVars[mapvote_endvote].BoolValue || IsMapEndVoteModeEnabled())
+	delete g_VoteReminderTimer;
+
+	if (!g_ConVars[mapvote_endvote].BoolValue
+		|| (IsMapEndVoteModeEnabled() && !g_ConVars[mapvote_reminder].BoolValue))
 	{
 		return;
 	}
@@ -571,6 +582,18 @@ void SetupTimeleftTimer()
 	{
 		int startTime = RoundToFloor(g_ConVars[mapvote_start].FloatValue * 60.0);
 		int timeUntilVote = time - startTime;
+		if (timeUntilVote > 0)
+		{
+			SetupVoteReminder(timeUntilVote);
+		}
+
+		// TF2's real map end can be later than its time limit. Only schedule
+		// the reminder here; the game-over event still starts the vote.
+		if (IsMapEndVoteModeEnabled())
+		{
+			return;
+		}
+
 		if (timeUntilVote <= 0)
 		{
 			if (!g_MapVoteCompleted && !g_HasVoteStarted && !g_WaitingForVote)
@@ -586,6 +609,44 @@ void SetupTimeleftTimer()
 		data.WriteCell(INVALID_HANDLE);
 		data.Reset();
 	}
+}
+
+void SetupVoteReminder(int timeUntilVote)
+{
+	if (!g_ConVars[mapvote_reminder].BoolValue || !g_ConVars[mapvote_endvote].BoolValue
+		|| g_VoteReminderShown || !g_MapList.Length || g_MapVoteCompleted
+		|| g_HasVoteStarted || g_WaitingForVote || g_MapEndVoteTriggered)
+	{
+		return;
+	}
+
+	if (timeUntilVote > MAP_VOTE_REMINDER_TIME)
+	{
+		g_VoteReminderTimer = CreateTimer(float(timeUntilVote - MAP_VOTE_REMINDER_TIME), Timer_VoteReminder, _, TIMER_FLAG_NO_MAPCHANGE);
+	}
+	else if (HasHumanPlayers())
+	{
+		g_VoteReminderShown = true;
+		CPrintToChatAll(PLUGIN_PREFIX ... " %t", "NativeVotes Map Vote Reminder", "\x04nominate\x01");
+	}
+}
+
+public Action Timer_VoteReminder(Handle timer)
+{
+	g_VoteReminderTimer = null;
+
+	// Recheck the deadline in case the map timer changed this frame.
+	int time;
+	if (GetMapVoteTimeLeft(time))
+	{
+		int timeUntilVote = time - RoundToFloor(g_ConVars[mapvote_start].FloatValue * 60.0);
+		if (timeUntilVote > 0)
+		{
+			SetupVoteReminder(timeUntilVote);
+		}
+	}
+
+	return Plugin_Stop;
 }
 
 bool GetMapVoteTimeLeft(int &time)
@@ -980,6 +1041,7 @@ void ShuffleNominations()
  */
 void InitiateVote(MapChange when, ArrayList inputlist=null)
 {
+	delete g_VoteReminderTimer;
 	g_WaitingForVote = true;
 	
 	bool isVoteInProgress = g_NativeVotes ? NativeVotes_IsVoteInProgress() : IsVoteInProgress();
@@ -1302,6 +1364,7 @@ public void Handler_VoteFinishedGenericShared(const char[] map, const char[] dis
 		
 		// We extended, so we'll have to vote again.
 		g_HasVoteStarted = false;
+		g_VoteReminderShown = false;
 		CreateNextVote();
 		SetupTimeleftTimer();
 		
@@ -1317,6 +1380,7 @@ public void Handler_VoteFinishedGenericShared(const char[] map, const char[] dis
 		}
 		
 		g_HasVoteStarted = false;
+		g_VoteReminderShown = false;
 		CreateNextVote();
 		SetupTimeleftTimer();
 	}

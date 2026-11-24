@@ -21,6 +21,12 @@
 		"en"	"No maps have been nominated."
 	}
 
+	"NativeVotes Map Vote Reminder"
+	{
+		"#format"	"{1:s}"
+		"en"		"Map vote coming up soon! Type {1} in chat to suggest a map."
+	}
+
 	"NativeVotes Nominations Header"
 	{
 		"en"	"Current nominations (map - nominator):"

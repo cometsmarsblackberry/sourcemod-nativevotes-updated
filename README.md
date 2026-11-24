@@ -98,6 +98,11 @@ the responsibility of the observing plugin.
 |`sm_nominate_maxfound`|`0`|Maximum number of nomination matches to add to the menu.<br>0 = infinite|
 
 ## [MapChooser](https://github.com/Heapons/sourcemod-nativevotes-updated/blob/master/addons/sourcemod/scripting/nativevotes_mapchooser.sp)
+- Enable `sm_mapvote_reminder 1` to remind players to nominate maps in chat one minute before a time-based vote. Disabled by default.
+  - The message reads: "Map vote coming up soon! Type nominate in chat to suggest a map."
+  - With TF2's `sm_mapvote_start 0`, the reminder appears one minute before the map time limit; the vote still waits for the actual map end.
+  - If enabled with less than a minute remaining before the vote, the reminder appears immediately. It appears once per vote cycle, including after an extension, and follows changes to the map timer.
+  - Votes triggered by rounds, frags, RTV, or an admin cannot be predicted one minute ahead and do not get a separate reminder. A map time limit is required.
 - Start the next-map vote at TF2's actual map end by setting `sm_mapvote_start` to `0`.
   - MapChooser temporarily extends the intermission to fit the vote (including a possible runoff), closes the automatically opened scoreboard, and changes to the selected map once the result is ready.
   - The `Extend Map` option is not offered in this mode because TF2 has already committed to changing levels.
@@ -110,6 +115,7 @@ the responsibility of the observing plugin.
 |-|-|-|
 |`sm_mapvote_endvote`|`1`|Specifies if MapChooser should run an end of map vote|
 |`sm_mapvote_start`|`3.0`|Specifies when to start the vote based on time remaining (in minutes). Set to `0` on TF2 to start it when the map ends|
+|`sm_mapvote_reminder`|`0`|Remind players to nominate maps one minute before a time-based vote, or before TF2's map time limit when `sm_mapvote_start` is `0`|
 |`sm_mapvote_startround`|`2.0`|Specifies when to start the vote based on rounds remaining. Use '0' on TF2 to start vote during bonus round time|
 |`sm_mapvote_startfrags`|`5.0`|Specifies when to start the vote based on frags remaining|
 |`sm_extendmap_timestep`|`15`|Specifies how many more minutes each extension makes|
